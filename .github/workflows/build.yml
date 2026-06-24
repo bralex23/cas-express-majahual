@@ -34,11 +34,10 @@ jobs:
           echo EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}>> .env
           echo EXPO_PUBLIC_FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}>> .env
 
-      - name: Instalar sharp-cli
-        run: npm install -g sharp-cli@2.1.0
-
-      - name: Instalar sharp local
-        run: npm install sharp
+      - name: Instalar sharp
+        run: |
+          npm install -g sharp-cli@2.1.0
+          npm install -g sharp@0.31.3
 
       - name: Exportar Expo web
         run: npx expo export --platform web --output-dir dist
