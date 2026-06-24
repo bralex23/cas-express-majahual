@@ -1,6 +1,6 @@
 {
   "name": "cas-express-majahual",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "expo-router/entry",
   "scripts": {
     "postinstall": "node scripts/patch-expo-router.js",

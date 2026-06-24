@@ -1228,7 +1228,14 @@ app.whenReady().then(() => {
 
   // Verificar actualizaciones (solo en producción)
   if (!isDev) {
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.autoDownload        = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    // Esperar 5s para que la app cargue antes de verificar
+    setTimeout(() => {
+      autoUpdater.checkForUpdates().catch(err => {
+        console.error('checkForUpdates error:', err);
+      });
+    }, 5000);
   }
 });
 
@@ -1237,22 +1244,46 @@ app.on('window-all-closed', () => {
 });
 
 /* ── Auto-updater eventos ── */
-autoUpdater.on('update-available', () => {
+autoUpdater.on('error', (err) => {
   dialog.showMessageBox({
-    type: 'info',
-    title: 'Actualización disponible',
-    message: 'Hay una nueva versión de CAS Express. Se descargará en segundo plano.',
+    type: 'error',
+    title: 'Error de actualización',
+    message: 'No se pudo verificar actualizaciones.\n\n' + err.message,
     buttons: ['OK'],
   });
 });
 
+autoUpdater.on('update-available', (info) => {
+  dialog.showMessageBox({
+    type: 'info',
+    title: 'Actualización disponible',
+    message: `Nueva versión ${info.version} disponible. Se descargará en segundo plano.`,
+    buttons: ['OK'],
+  });
+});
+
+autoUpdater.on('update-not-available', () => {
+  console.log('CAS Majahual: ya está en la versión más reciente.');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  if (mainWindow) {
+    mainWindow.setProgressBar(progress.percent / 100);
+    mainWindow.setTitle(`CAS Express — Descargando actualización ${Math.round(progress.percent)}%`);
+  }
+});
+
 autoUpdater.on('update-downloaded', () => {
+  if (mainWindow) {
+    mainWindow.setProgressBar(-1);
+    mainWindow.setTitle('CAS Express — Majahual Tamanique');
+  }
   dialog.showMessageBox({
     type: 'info',
     title: 'Actualización lista',
     message: 'La actualización fue descargada. CAS Express se reiniciará para instalarla.',
-    buttons: ['Reiniciar ahora'],
-  }).then(() => {
-    autoUpdater.quitAndInstall();
+    buttons: ['Reiniciar ahora', 'Más tarde'],
+  }).then(({ response }) => {
+    if (response === 0) autoUpdater.quitAndInstall();
   });
 });
