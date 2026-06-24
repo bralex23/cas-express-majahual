@@ -1,5 +1,5 @@
 @echo off
-title CAS Majahual Tamanique
+title CAS Majahual
 cd /d "%~dp0"
 
 REM ── Buscar Node.js ──────────────────────────────

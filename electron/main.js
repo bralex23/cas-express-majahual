@@ -50,7 +50,7 @@ function createWindow() {
     backgroundColor: '#070c1e',
     show: false,
     icon: path.join(__dirname, '../assets/icon.ico'),
-    title: 'CAS Express — Majahual Tamanique',
+    title: 'CAS Express — Majahual',
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -1276,7 +1276,7 @@ autoUpdater.on('download-progress', (progress) => {
 autoUpdater.on('update-downloaded', () => {
   if (mainWindow) {
     mainWindow.setProgressBar(-1);
-    mainWindow.setTitle('CAS Express — Majahual Tamanique');
+    mainWindow.setTitle('CAS Express — Majahual');
   }
   dialog.showMessageBox({
     type: 'info',

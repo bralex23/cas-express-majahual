@@ -1491,7 +1491,7 @@ export async function generarPDFFicha(prestamos: Prestamo[]) {
     return `
       <div class="ficha">
         <div class="hdr" style="padding-bottom:${hdrPb};margin-bottom:${hdrMb}">
-          <div class="empresa">CAS Express Majahual Tamanique</div>
+          <div class="empresa">CAS Express Majahual</div>
           <div class="logo-box">
             <div class="logo-sup">CAS EXPRESS MAJAHUAL</div>
             <div class="logo-nom">CAS Express</div>

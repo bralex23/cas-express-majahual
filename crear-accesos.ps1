@@ -36,7 +36,7 @@ $s1.IconLocation     = $ico
 $s1.WindowStyle      = 1
 $s1.Save()
 
-$s2 = $ws.CreateShortcut($desktop + '\CAS Majahual Tamanique.lnk')
+$s2 = $ws.CreateShortcut($desktop + '\CAS Majahual.lnk')
 $s2.TargetPath       = $wscript
 $s2.Arguments        = '"' + $vbs2 + '"'
 $s2.WorkingDirectory = $dir

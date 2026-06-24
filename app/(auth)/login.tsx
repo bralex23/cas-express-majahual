@@ -42,7 +42,7 @@ export default function Login() {
               </View>
           }
           <Text style={s.empresa}>CAS Express Majahual</Text>
-          <Text style={s.slogan}>Majahual · Tamanique</Text>
+          <Text style={s.slogan}>Majahual</Text>
         </View>
 
         <View style={s.card}>
