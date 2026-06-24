@@ -22,7 +22,7 @@ export const EMPRESA_MAJAHUAL: EmpresaInfo = {
   id:          'majahual',
   nombre:      'CAS EXPRESS RUTA MAJAHUAL TAMANIQUE',
   nombreCorto: 'CAS Majahual',
-  slogan:      'Ruta Majahual · Tamanique',
+  slogan:      'Majahual · Tamanique',
   palette:     'verde',
   tasaMaxima:  null,
   titular:     '',   // Completar con el nombre del titular cuando esté disponible
