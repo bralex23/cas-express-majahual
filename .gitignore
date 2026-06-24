@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+dist/
+release/
+.env
+.env.local
+serviceAccountKey.json
+*.log
+.github-config
+android/
+ios/

@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers de perfil ──────────────────────────────────────────
+    function existePerfil() {
+      return exists(/databases/$(database)/documents/perfiles/$(request.auth.uid));
+    }
+    function miPerfil() {
+      return get(/databases/$(database)/documents/perfiles/$(request.auth.uid)).data;
+    }
+    function getMiRol()  { return miPerfil().rol; }
+    function getMiRuta() { return miPerfil().ruta_id; }
+
+    function auth()         { return request.auth != null; }
+    function estaActivo()   { return auth() && existePerfil() && miPerfil().activo == true; }
+    function esAdmin()      { return estaActivo() && getMiRol() == 'admin'; }
+    function esSupervisor() { return estaActivo() && getMiRol() in ['admin','supervisor']; }
+    function esAsesor()     { return estaActivo() && getMiRol() in ['admin','supervisor','asesor']; }
+    function esCobrador()   { return estaActivo() && getMiRol() in ['admin','supervisor','asesor','cobrador']; }
+
+    // ── Perfiles ───────────────────────────────────────────────────
+    match /perfiles/{uid} {
+      allow read:   if auth() && (request.auth.uid == uid || esSupervisor());
+      allow create: if esAdmin();
+      allow update: if esAdmin() || (
+        estaActivo() &&
+        request.auth.uid == uid &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rol','activo','ruta_id'])
+      );
+      allow delete: if esAdmin();
+    }
+
+    // ── Rutas ──────────────────────────────────────────────────────
+    match /rutas/{id} {
+      allow read:  if estaActivo();
+      allow write: if esAdmin();
+    }
+
+    // ── Clientes ───────────────────────────────────────────────────
+    match /clientes/{id} {
+      allow read:   if auth() && (esSupervisor() || resource.data.ruta_id == getMiRuta());
+      allow create: if esAsesor();
+      allow update: if esSupervisor() || resource.data.ruta_id == getMiRuta();
+      allow delete: if esAdmin();
+
+      match /garantias/{gId} {
+        allow read:   if esAsesor();
+        allow create: if esAsesor();
+        allow update: if esSupervisor();
+        allow delete: if esSupervisor();
+      }
+    }
+
+    // ── Préstamos ──────────────────────────────────────────────────
+    match /prestamos/{id} {
+      allow read:   if auth() && (
+        esSupervisor() ||
+        get(/databases/$(database)/documents/clientes/$(resource.data.cliente_id)).data.ruta_id == getMiRuta()
+      );
+      allow create: if esAsesor();
+      allow update: if esSupervisor() || (
+        existePerfil() &&
+        get(/databases/$(database)/documents/clientes/$(resource.data.cliente_id)).data.ruta_id == getMiRuta()
+      );
+      allow delete: if esAdmin();
+
+      match /pagos/{pagoId} {
+        allow read:   if auth();
+        allow create: if esCobrador();
+        allow update: if esSupervisor();
+        allow delete: if esSupervisor();
+      }
+    }
+
+    // ── CollectionGroup: pagos ─────────────────────────────────────
+    match /{path=**}/pagos/{pagoId} {
+      allow read:   if auth();
+      allow create: if esCobrador();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Ahorros ────────────────────────────────────────────────────
+    match /ahorros/{id} {
+      allow read:   if auth() && (esSupervisor() || resource.data.cobrador_id == request.auth.uid);
+      allow create: if esCobrador();
+      allow delete: if esAdmin();
+    }
+
+    // ── Gastos ─────────────────────────────────────────────────────
+    match /gastos/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Cuadratura ─────────────────────────────────────────────────
+    match /cuadratura/{id} {
+      allow read:   if estaActivo() && (esSupervisor() || resource.data.created_by == request.auth.uid);
+      allow create: if esCobrador();
+      allow update: if esSupervisor();
+      allow delete: if esAdmin();
+    }
+
+    // ── Reportes Diarios ───────────────────────────────────────────
+    match /reportes_diarios/{id} {
+      allow read:   if estaActivo() && (esSupervisor() || resource.data.created_by == request.auth.uid);
+      allow create: if esCobrador();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Facturas ──────────────────────────────────────────────────
+    match /facturas/{id} {
+      allow read:   if estaActivo();
+      allow create: if estaActivo();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Multas ─────────────────────────────────────────────────────
+    match /multas/{id} {
+      allow read:   if estaActivo();
+      allow create: if esCobrador();
+      allow update: if esSupervisor();
+      allow delete: if esAdmin();
+    }
+
+    // ── Cuadros Cobrador ───────────────────────────────────────────
+    match /cuadros_cobrador/{id} {
+      allow read:   if estaActivo();
+      allow create: if esCobrador();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Libros de IVA ──────────────────────────────────────────────
+    match /libroiva_compras/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+    match /libroiva_ventas_cf/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+    match /libroiva_ventas_cont/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+
+    // ── Planilla ───────────────────────────────────────────────────
+    match /planilla_empleados/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+    match /planilla_registros/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+    match /planilla_config/{id} {
+      allow read:   if esSupervisor();
+      allow create: if esSupervisor();
+      allow update: if esSupervisor();
+      allow delete: if esSupervisor();
+    }
+  }
+}

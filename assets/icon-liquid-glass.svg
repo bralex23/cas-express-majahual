@@ -1,0 +1,92 @@
+<svg width="512" height="512" viewBox="0 0 512 512" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>CAS Express</title>
+  <desc>Ícono de CAS Express – esfera liquid glass con flecha dorada trending-up</desc>
+  <defs>
+    <radialGradient id="ibg" cx="50%" cy="42%" r="68%">
+      <stop offset="0%" stop-color="#0c1638"/>
+      <stop offset="100%" stop-color="#030810"/>
+    </radialGradient>
+    <radialGradient id="sph" cx="37%" cy="31%" r="74%">
+      <stop offset="0%" stop-color="#3a5ce0"/>
+      <stop offset="28%" stop-color="#1430a2"/>
+      <stop offset="62%" stop-color="#08186c"/>
+      <stop offset="100%" stop-color="#020b28"/>
+    </radialGradient>
+    <radialGradient id="lit" cx="232" cy="204" r="175" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="rgba(155,195,255,0.42)"/>
+      <stop offset="48%" stop-color="rgba(70,120,255,0.10)"/>
+      <stop offset="100%" stop-color="rgba(0,4,28,0.58)"/>
+    </radialGradient>
+    <radialGradient id="gls" cx="212" cy="168" r="118" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.70)"/>
+      <stop offset="52%" stop-color="rgba(255,255,255,0.12)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+    <clipPath id="sc"><circle cx="256" cy="248" r="162"/></clipPath>
+    <pattern id="til" x="0" y="0" width="22" height="22" patternUnits="userSpaceOnUse">
+      <rect x="1" y="1" width="19" height="19" rx="3" fill="#163898"/>
+      <rect x="1" y="1" width="19" height="19" rx="3" fill="none" stroke="#060d3a" stroke-width="1.2"/>
+    </pattern>
+  </defs>
+
+  <!-- Fondo redondeado -->
+  <rect x="0" y="0" width="512" height="512" rx="115" fill="url(#ibg)"/>
+  <rect x="0" y="0" width="512" height="512" rx="115" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="2"/>
+
+  <!-- Halo ambiente esfera -->
+  <circle cx="256" cy="248" r="176" fill="rgba(18,48,185,0.08)"/>
+  <circle cx="256" cy="248" r="170" fill="rgba(12,36,155,0.05)"/>
+
+  <!-- Esfera base -->
+  <circle cx="256" cy="248" r="162" fill="url(#sph)"/>
+
+  <!-- Mosaico de tiles -->
+  <rect x="94" y="86" width="324" height="324" fill="url(#til)" clip-path="url(#sc)" opacity="0.78"/>
+
+  <!-- Iluminación 3D radial -->
+  <circle cx="256" cy="248" r="162" fill="url(#lit)" clip-path="url(#sc)"/>
+
+  <!-- Reflejo glass (elipse superior izquierda) -->
+  <ellipse cx="214" cy="174" rx="96" ry="65" transform="rotate(-14,214,174)" fill="url(#gls)" clip-path="url(#sc)"/>
+
+  <!-- Sombra inferior (profundidad) -->
+  <circle cx="256" cy="328" r="162" fill="rgba(0,0,22,0.28)" clip-path="url(#sc)"/>
+
+  <!-- Borde esfera -->
+  <circle cx="256" cy="248" r="162" fill="none" stroke="rgba(65,105,255,0.28)" stroke-width="2.5"/>
+
+  <!-- Flecha dorada – capa glow -->
+  <path d="M142,322 L186,242 L224,272 L267,190"
+        fill="none" stroke="rgba(200,160,48,0.30)" stroke-width="30"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Flecha dorada – línea principal -->
+  <path d="M142,322 L186,242 L224,272 L267,190"
+        fill="none" stroke="#c8a951" stroke-width="17"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Flecha dorada – brillo interior -->
+  <path d="M142,322 L186,242 L224,272 L267,190"
+        fill="none" stroke="#f0d878" stroke-width="6"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.78"/>
+
+  <!-- Punta de flecha (triángulo relleno) -->
+  <polygon points="279,173 282,194 262,184" fill="#c8a951"/>
+  <polygon points="279,173 282,194 262,184" fill="#f0d878" opacity="0.62"/>
+
+  <!-- Destello grande (esquina superior derecha) -->
+  <g transform="translate(400,113)">
+    <path d="M0,-25 C3,-3 3,-3 25,0 C3,3 3,3 0,25 C-3,3 -3,3 -25,0 C-3,-3 -3,-3 0,-25Z" fill="white" opacity="0.96"/>
+    <path d="M0,-13 C1.5,-1.5 1.5,-1.5 13,0 C1.5,1.5 1.5,1.5 0,13 C-1.5,1.5 -1.5,1.5 -13,0 C-1.5,-1.5 -1.5,-1.5 0,-13Z" fill="white" opacity="0.55"/>
+  </g>
+
+  <!-- Destello pequeño (esquina inferior izquierda) -->
+  <g transform="translate(110,370)">
+    <path d="M0,-15 C2,-2 2,-2 15,0 C2,2 2,2 0,15 C-2,2 -2,2 -15,0 C-2,-2 -2,-2 0,-15Z" fill="white" opacity="0.80"/>
+  </g>
+
+  <!-- Puntos de acento -->
+  <circle cx="420" cy="148" r="3.5" fill="white" opacity="0.60"/>
+  <circle cx="88" cy="155" r="2.5" fill="white" opacity="0.38"/>
+  <circle cx="425" cy="340" r="2" fill="white" opacity="0.26"/>
+</svg>

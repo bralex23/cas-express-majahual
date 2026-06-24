@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "CAS Majahual",
+    "slug": "cas-express-majahual",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1b5e20"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.casexpress.majahual"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1b5e20"
+      },
+      "package": "com.casexpress.majahual",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CAS Majahual necesita acceso a tus fotos para la foto del cliente (DUI)."
+        }
+      ]
+    ],
+    "scheme": "casmajahual",
+    "extra": {
+      "router": {
+        "origin": false
+      }
+    }
+  }
+}

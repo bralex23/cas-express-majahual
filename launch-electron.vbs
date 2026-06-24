@@ -1,0 +1,1 @@
+CreateObject("WScript.Shell").Run Chr(34) & "C:\Users\BRALX\Desktop\SISTEMAS CLAUDE\CAS EXPRESS SISTEMA MAJAHUAL TAMANIQUE\Iniciar CAS Express.bat" & Chr(34), 1, False
