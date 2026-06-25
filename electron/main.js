@@ -1243,24 +1243,120 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+/* ── Ventana personalizada de actualización ── */
+function showUpdateDialog(type, data = {}) {
+  const sizes = {
+    available:  { width: 400, height: 340 },
+    downloaded: { width: 400, height: 330 },
+    error:      { width: 400, height: 300 },
+  };
+  const size = sizes[type] || { width: 400, height: 320 };
+
+  const query = { type };
+  if (data.version) query.version = data.version;
+  if (data.message) query.message = data.message;
+
+  const win = new BrowserWindow({
+    width:       size.width,
+    height:      size.height,
+    resizable:   false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    frame:       false,
+    backgroundColor: '#051208',
+    show:        false,
+    parent:      mainWindow || undefined,
+    webPreferences: {
+      nodeIntegration:  true,
+      contextIsolation: false,
+    },
+  });
+
+  win.loadFile(path.join(__dirname, 'update-dialog.html'), { query });
+  win.once('ready-to-show', () => win.show());
+  return win;
+}
+
+/* ── IPC: acciones desde la ventana de actualización ── */
+ipcMain.on('update-dialog-action', (_event, action) => {
+  if (action === 'install') {
+    autoUpdater.quitAndInstall();
+  }
+});
+
+/* ── Overlay de descarga sobre la ventana principal ── */
+function injectDownloadOverlay(percent) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const pct  = Math.round(percent);
+  const circ = Math.round(2 * Math.PI * 34); // circunferencia r=34
+  const offset = Math.round(circ * (1 - pct / 100));
+
+  mainWindow.webContents.executeJavaScript(`
+    (function() {
+      const pct = ${pct}, circ = ${circ}, offset = ${offset};
+      let ov = document.getElementById('_cas_dl_ov');
+      if (!ov) {
+        ov = document.createElement('div');
+        ov.id = '_cas_dl_ov';
+        document.body.appendChild(ov);
+        ['click','mousedown','mouseup','keydown','touchstart'].forEach(ev =>
+          ov.addEventListener(ev, e => { e.stopPropagation(); e.preventDefault(); }, true)
+        );
+      }
+      ov.style.cssText = [
+        'position:fixed','inset:0','z-index:2147483647',
+        'background:rgba(5,18,8,0.85)',
+        'backdrop-filter:blur(12px)','-webkit-backdrop-filter:blur(12px)',
+        'display:flex','flex-direction:column','align-items:center','justify-content:center',
+        'pointer-events:all','cursor:not-allowed','user-select:none',
+        'font-family:Segoe UI,system-ui,sans-serif'
+      ].join('!important;') + '!important';
+
+      ov.innerHTML =
+        '<div style="text-align:center;max-width:300px;padding:0 24px">' +
+          '<svg width="100" height="100" viewBox="0 0 80 80" style="margin-bottom:22px;filter:drop-shadow(0 0 18px rgba(105,240,174,0.25))">' +
+            '<circle cx="40" cy="40" r="34" fill="none" stroke="rgba(105,240,174,0.1)" stroke-width="6"/>' +
+            '<circle cx="40" cy="40" r="34" fill="none" stroke="#69f0ae" stroke-width="6"' +
+              ' stroke-linecap="round" stroke-dasharray="' + circ + '" stroke-dashoffset="' + offset + '"' +
+              ' transform="rotate(-90 40 40)" style="transition:stroke-dashoffset 0.5s ease"/>' +
+            '<text x="40" y="38" text-anchor="middle" fill="#fff"' +
+              ' style="font-size:13px;font-family:Segoe UI,sans-serif;font-weight:400;fill-opacity:0.5">CAS</text>' +
+            '<text x="40" y="52" text-anchor="middle" fill="#69f0ae"' +
+              ' style="font-size:16px;font-family:Segoe UI,sans-serif;font-weight:800">' + pct + '%</text>' +
+          '</svg>' +
+          '<div style="color:#fff;font-size:17px;font-weight:700;margin-bottom:8px;letter-spacing:0.2px">Descargando actualización</div>' +
+          '<div style="color:rgba(255,255,255,0.4);font-size:12px;line-height:1.7;margin-bottom:22px">' +
+            'Por favor no cierre la aplicación.<br>Se reiniciará automáticamente al terminar.' +
+          '</div>' +
+          '<div style="width:100%;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden">' +
+            '<div style="height:100%;width:' + pct + '%;background:linear-gradient(90deg,#1b5e20,#69f0ae);border-radius:2px;transition:width 0.5s ease"></div>' +
+          '</div>' +
+        '</div>';
+    })();
+  `).catch(() => {});
+}
+
+function removeDownloadOverlay() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.webContents.executeJavaScript(`
+    const ov = document.getElementById('_cas_dl_ov');
+    if (ov) {
+      ov.style.transition = 'opacity 0.35s ease';
+      ov.style.opacity = '0';
+      setTimeout(() => ov && ov.remove(), 380);
+    }
+  `).catch(() => {});
+}
+
 /* ── Auto-updater eventos ── */
 autoUpdater.on('error', (err) => {
-  dialog.showMessageBox({
-    type: 'error',
-    title: 'Error de actualización',
-    message: 'Error:\n' + (err.message || String(err)),
-    detail: 'Código: ' + (err.code || 'desconocido'),
-    buttons: ['OK'],
-  });
+  removeDownloadOverlay();
+  showUpdateDialog('error', { message: err.message || String(err) });
 });
 
 autoUpdater.on('update-available', (info) => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Actualización disponible',
-    message: `Nueva versión ${info.version} disponible. Se descargará en segundo plano.`,
-    buttons: ['OK'],
-  });
+  showUpdateDialog('available', { version: info.version });
 });
 
 autoUpdater.on('update-not-available', () => {
@@ -1268,10 +1364,8 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  if (mainWindow) {
-    mainWindow.setProgressBar(progress.percent / 100);
-    mainWindow.setTitle(`CAS Express — Descargando actualización ${Math.round(progress.percent)}%`);
-  }
+  if (mainWindow) mainWindow.setProgressBar(progress.percent / 100);
+  injectDownloadOverlay(progress.percent);
 });
 
 autoUpdater.on('update-downloaded', () => {
@@ -1279,12 +1373,6 @@ autoUpdater.on('update-downloaded', () => {
     mainWindow.setProgressBar(-1);
     mainWindow.setTitle('CAS Express — Majahual');
   }
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Actualización lista',
-    message: 'La actualización fue descargada. CAS Express se reiniciará para instalarla.',
-    buttons: ['Reiniciar ahora', 'Más tarde'],
-  }).then(({ response }) => {
-    if (response === 0) autoUpdater.quitAndInstall();
-  });
+  removeDownloadOverlay();
+  showUpdateDialog('downloaded');
 });
