@@ -1248,7 +1248,8 @@ autoUpdater.on('error', (err) => {
   dialog.showMessageBox({
     type: 'error',
     title: 'Error de actualización',
-    message: 'No se pudo verificar actualizaciones.\n\n' + err.message,
+    message: 'Error:\n' + (err.message || String(err)),
+    detail: 'Código: ' + (err.code || 'desconocido'),
     buttons: ['OK'],
   });
 });
