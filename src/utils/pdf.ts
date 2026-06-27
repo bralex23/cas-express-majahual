@@ -5,7 +5,7 @@ import { Asset } from 'expo-asset';
 import { Prestamo, CuotaCalendar, Cliente } from '../types';
 import { formatMoneda, formatFecha, calcularVencimiento } from './calculos';
 
-const EMPRESA = 'CAS EXPRESS RUTA MAJAHUAL TAMANIQUE';
+const EMPRESA = 'CAS EXPRESS MAJAHUAL';
 const SLOGAN  = 'Créditos Legales · BCR';
 
 /* ── Utilidades internas ──────────────────────────────────────── */
@@ -1881,6 +1881,136 @@ export async function generarPDFTirasBilletes(tiras: TiraBillete[], persona?: st
     .corte{font-size:8px;color:#bbb;text-align:center;letter-spacing:1px;margin-bottom:1.5mm}
   </style></head><body>
     ${filas}
+  </body></html>`;
+
+  return imprimir(html);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   13. RECIBO DE CANCELACIÓN
+       Se genera cuando el préstamo está completado (saldo = $0).
+       Muestra sello CANCELADO + datos + tabla de pagos realizados.
+   ══════════════════════════════════════════════════════════════ */
+export async function generarPDFCancelado(
+  prestamo: Prestamo,
+  cal: CuotaCalendar[],
+): Promise<string> {
+  const c       = prestamo.cliente as any;
+  const hoyFmt  = formatFecha(new Date().toISOString().split('T')[0]);
+  const pagadas = cal.filter(cu => cu.pagada);
+  const ultPago = pagadas.length > 0
+    ? pagadas.reduce((max, cu) =>
+        (cu.pago?.fecha_pago ?? '') > max ? (cu.pago?.fecha_pago ?? '') : max, '')
+    : '';
+  const totalCobrado = pagadas.reduce((s, cu) => s + (cu.pago?.monto_pagado ?? cu.monto), 0);
+
+  const filasPago = cal.map((cu, i) => {
+    const bg = i % 2 === 0 ? '#f9f9f9' : '#ffffff';
+    const fechaPago = cu.pagada && cu.pago?.fecha_pago
+      ? formatFecha(cu.pago.fecha_pago)
+      : '—';
+    return `
+      <tr style="background:${bg}">
+        <td style="text-align:center;padding:5px 4px;border:1px solid #ddd;font-weight:700">#${cu.numero}</td>
+        <td style="text-align:center;padding:5px 4px;border:1px solid #ddd">${formatFecha(cu.fecha_vencimiento)}</td>
+        <td style="text-align:center;padding:5px 4px;border:1px solid #ddd;color:${cu.pagada ? '#2e7d32' : '#999'}">${fechaPago}</td>
+        <td style="text-align:right;padding:5px 8px 5px 4px;border:1px solid #ddd;font-weight:600">${formatMoneda(cu.monto)}</td>
+      </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    @page { size: letter portrait; margin: 14mm 14mm 14mm 14mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; color: #222; background: #fff; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding-bottom: 10px; border-bottom: 2px solid #1b5e20; }
+    .empresa-nom { font-size: 17px; font-weight: 900; color: #1b5e20; letter-spacing: 0.5px; }
+    .slogan { font-size: 11px; color: #777; margin-top: 2px; }
+    .fecha-emision { font-size: 11px; color: #555; text-align: right; }
+    .sello { border: 3px solid #c62828; border-radius: 6px; text-align: center; padding: 14px 20px; margin-bottom: 22px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sello-txt { font-size: 36px; font-weight: 900; color: #c62828; letter-spacing: 4px; }
+    .datos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid #ccc; border-radius: 6px; overflow: hidden; margin-bottom: 18px; }
+    .dato-row { display: flex; border-bottom: 1px solid #e0e0e0; }
+    .dato-row:last-child { border-bottom: none; }
+    .dato-lbl { background: #f0f4f0; font-weight: 700; font-size: 11px; color: #444; padding: 6px 10px; width: 140px; min-width: 140px; border-right: 1px solid #e0e0e0; }
+    .dato-val { padding: 6px 10px; font-size: 12px; color: #111; font-weight: 600; }
+    .resumen { display: flex; gap: 10px; margin-bottom: 20px; }
+    .res-box { flex: 1; border: 1px solid #ccc; border-radius: 8px; text-align: center; padding: 10px 6px; }
+    .res-num { font-size: 20px; font-weight: 900; color: #1b5e20; }
+    .res-lbl { font-size: 10px; color: #666; margin-top: 3px; }
+    .sec-tit { font-size: 12px; font-weight: 800; color: #333; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; border-left: 3px solid #1b5e20; padding-left: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
+    thead th { background: #1b5e20; color: #fff; padding: 7px 8px; font-size: 11px; font-weight: 700; text-align: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .firmas { display: flex; gap: 40px; margin-top: 10px; }
+    .firma-bloque { flex: 1; text-align: center; }
+    .firma-linea { border-top: 1px solid #333; margin-bottom: 6px; }
+    .firma-lbl { font-size: 11px; color: #555; font-weight: 600; }
+    .firma-nombre { font-size: 11px; color: #333; margin-top: 2px; }
+    .pie { font-size: 9px; color: #aaa; text-align: center; margin-top: 18px; border-top: 1px solid #eee; padding-top: 8px; }
+  </style>
+  </head><body>
+
+  <div class="header">
+    <div>
+      <div class="empresa-nom">SOLUCIONES FINANCIERAS CAS EXPRESS</div>
+      <div class="slogan">Majahual</div>
+    </div>
+    <div class="fecha-emision">Fecha de emisión: ${hoyFmt}</div>
+  </div>
+
+  <div class="sello">
+    <span class="sello-txt">&#10003; CANCELADO</span>
+  </div>
+
+  <div class="datos-grid">
+    <div class="dato-row"><div class="dato-lbl">Cliente:</div><div class="dato-val">${c?.nombre || ''}</div></div>
+    <div class="dato-row"><div class="dato-lbl">DUI:</div><div class="dato-val">${c?.dui || ''}</div></div>
+    <div class="dato-row"><div class="dato-lbl">Teléfono:</div><div class="dato-val">${c?.telefono || ''}</div></div>
+    <div class="dato-row"><div class="dato-lbl">N° Expediente:</div><div class="dato-val">${fmtExp(c?.numero_expediente)}</div></div>
+    <div class="dato-row"><div class="dato-lbl">Monto prestado:</div><div class="dato-val">${formatMoneda(prestamo.monto)}</div></div>
+    <div class="dato-row"><div class="dato-lbl">Interés:</div><div class="dato-val">${prestamo.interes}%</div></div>
+    <div class="dato-row"><div class="dato-lbl">Cuota ${prestamo.frecuencia}:</div><div class="dato-val">${formatMoneda(prestamo.cuota)}</div></div>
+    <div class="dato-row"><div class="dato-lbl">Fecha inicio:</div><div class="dato-val">${formatFecha(prestamo.fecha_inicio)}</div></div>
+    <div class="dato-row"><div class="dato-lbl">Último pago:</div><div class="dato-val">${ultPago ? formatFecha(ultPago) : '—'}</div></div>
+  </div>
+
+  <div class="resumen">
+    <div class="res-box"><div class="res-num">${prestamo.plazo}</div><div class="res-lbl">Cuotas totales</div></div>
+    <div class="res-box"><div class="res-num">${pagadas.length}</div><div class="res-lbl">Cuotas pagadas</div></div>
+    <div class="res-box"><div class="res-num" style="font-size:16px">${formatMoneda(totalCobrado)}</div><div class="res-lbl">Total pagado</div></div>
+    <div class="res-box"><div class="res-num" style="color:#c62828">$0.00</div><div class="res-lbl">Saldo pendiente</div></div>
+  </div>
+
+  <div class="sec-tit">Calendario de pagos</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px">#</th>
+        <th>Vencimiento</th>
+        <th>Fecha de pago</th>
+        <th style="text-align:right;padding-right:12px">Monto</th>
+      </tr>
+    </thead>
+    <tbody>${filasPago}</tbody>
+  </table>
+
+  <div class="firmas">
+    <div class="firma-bloque">
+      <div style="height:36px"></div>
+      <div class="firma-linea"></div>
+      <div class="firma-lbl">Firma del cliente</div>
+      <div class="firma-nombre">${c?.nombre || ''}</div>
+    </div>
+    <div class="firma-bloque">
+      <div style="height:36px"></div>
+      <div class="firma-linea"></div>
+      <div class="firma-lbl">Sello / Asesor</div>
+      <div class="firma-nombre">SOLUCIONES FINANCIERAS CAS EXPRESS</div>
+    </div>
+  </div>
+
+  <div class="pie">SOLUCIONES FINANCIERAS CAS EXPRESS &middot; Recibo de cancelación &middot; ${hoyFmt} &middot; Este documento certifica que el crédito ha sido cancelado en su totalidad.</div>
+
   </body></html>`;
 
   return imprimir(html);

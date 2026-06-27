@@ -18,7 +18,7 @@ import {
   formatMoneda, formatFecha, hoy, FRECUENCIAS,
 } from '../../../src/utils/calculos';
 import { StaggerItem } from '../../../src/components/FadeIn';
-import { generarPDFPrestamo, generarPDFContrato, generarPDFSolicitud, generarPDFFicha, generarPDFCopiaDUI, generarPDFReciboLuz, compartir } from '../../../src/utils/pdf';
+import { generarPDFPrestamo, generarPDFContrato, generarPDFSolicitud, generarPDFFicha, generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFCancelado, compartir } from '../../../src/utils/pdf';
 
 const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diaSemana(fecha: string) {
@@ -315,6 +315,13 @@ export default function DetallePrestamo() {
     catch(e) {}
     setPdfLoad(false);
   }
+  async function imprimirCancelado() {
+    if (!prestamo) return;
+    setPdfLoad(true);
+    try { await generarPDFCancelado(prestamo, cal); }
+    catch(e) {}
+    setPdfLoad(false);
+  }
 
   function comprimirABase64(uri: string, maxW = 1600, calidad = 0.8): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -494,6 +501,12 @@ export default function DetallePrestamo() {
               {''}
             </Button>
           </View>
+          {(prestamo.estado === 'completado' || saldoPendiente <= 0) && (
+            <Button mode="contained" icon="check-circle" onPress={imprimirCancelado} loading={pdfLoading}
+              style={{backgroundColor:'#c62828',borderRadius:8}} textColor="#fff">
+              🏆 Imprimir Recibo de Cancelación
+            </Button>
+          )}
           {isSupervisor && (
             <View style={{flexDirection:'row',gap:8}}>
               <Button mode="outlined" icon="pencil" onPress={abrirEditar}
