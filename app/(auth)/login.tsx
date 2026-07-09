@@ -42,7 +42,7 @@ export default function Login() {
               </View>
           }
           <Text style={s.empresa}>CAS Express Majahual</Text>
-          <Text style={s.slogan}>Majahual</Text>
+          <Text style={s.slogan}>CAS Express</Text>
         </View>
 
         <View style={s.card}>

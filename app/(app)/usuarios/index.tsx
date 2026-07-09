@@ -50,6 +50,33 @@ export default function Usuarios() {
   const [repError,  setRepError] = useState('');
   const [repExito,  setRepExito] = useState('');
 
+  // ── Modal editar nombre de usuario existente ──
+  const [modalEditar, setModalEditar]       = useState(false);
+  const [editUsuario, setEditUsuario]       = useState<Perfil | null>(null);
+  const [editNombre,  setEditNombre]        = useState('');
+  const [editSaving,  setEditSaving]        = useState(false);
+  const [editError,   setEditError]         = useState('');
+
+  function abrirEditar(u: Perfil) {
+    setEditUsuario(u);
+    setEditNombre(u.nombre);
+    setEditError('');
+    setModalEditar(true);
+  }
+
+  async function guardarEdicion() {
+    if (!editNombre.trim() || !editUsuario) { setEditError('El nombre no puede estar vacío.'); return; }
+    setEditSaving(true); setEditError('');
+    try {
+      await updateDoc(doc(db, 'perfiles', editUsuario.id), { nombre: editNombre.trim() });
+      setModalEditar(false);
+      load();
+    } catch(e: any) {
+      setEditError(e.message || 'No se pudo actualizar.');
+    }
+    setEditSaving(false);
+  }
+
   async function load() {
     setLoading(true);
     setLoadError('');
@@ -221,11 +248,16 @@ export default function Usuarios() {
                 </View>
               </View>
               {isAdmin && (
-                <TouchableOpacity onPress={() => toggleActivo(item)} style={s.togBtn}>
-                  <Text style={[s.togTxt,{color:item.activo?'#c62828':'#2e7d32'}]}>
-                    {item.activo ? 'Desactivar' : 'Activar'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={{flexDirection:'row',gap:6}}>
+                  <TouchableOpacity onPress={() => abrirEditar(item)} style={s.togBtn}>
+                    <Text style={[s.togTxt,{color:'#1565c0'}]}>Editar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => toggleActivo(item)} style={s.togBtn}>
+                    <Text style={[s.togTxt,{color:item.activo?'#c62828':'#2e7d32'}]}>
+                      {item.activo ? 'Desactivar' : 'Activar'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </Card.Content>
           </Card>
@@ -279,6 +311,23 @@ export default function Usuarios() {
               Crear Usuario
             </Button>
             <Button onPress={()=>setModal(false)} style={{marginTop:6}}>Cancelar</Button>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Modal: editar nombre de usuario ── */}
+      <Modal visible={modalEditar} transparent animationType="slide" onRequestClose={()=>setModalEditar(false)}>
+        <View style={s.overlay} pointerEvents="box-none">
+          <View style={s.modalBox}>
+            <Text style={s.modalTit}>Editar Nombre</Text>
+            <TextInput label="Nombre completo" value={editNombre} onChangeText={setEditNombre}
+              mode="outlined" style={s.input} autoCapitalize="words" autoFocus/>
+            {editError ? <View style={s.errorBox}><Text style={s.errorTxt}>⚠️ {editError}</Text></View> : null}
+            <Button mode="contained" onPress={guardarEdicion} loading={editSaving} disabled={editSaving}
+              style={{marginTop:14,backgroundColor:C.primary}}>
+              Guardar
+            </Button>
+            <Button onPress={()=>setModalEditar(false)} style={{marginTop:6}}>Cancelar</Button>
           </View>
         </View>
       </Modal>

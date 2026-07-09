@@ -22,7 +22,7 @@ export const EMPRESA_MAJAHUAL: EmpresaInfo = {
   id:          'majahual',
   nombre:      'CAS EXPRESS MAJAHUAL',
   nombreCorto: 'CAS Majahual',
-  slogan:      'Majahual',
+  slogan:      'CAS Express',
   palette:     'verde',
   tasaMaxima:  null,
   titular:     '',   // Completar con el nombre del titular cuando esté disponible

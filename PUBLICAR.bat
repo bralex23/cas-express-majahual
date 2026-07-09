@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 echo ============================================
 echo   CAS Majahual - Publicar Cambios
 echo ============================================
@@ -10,28 +11,25 @@ REM Leer version actual del package.json
 for /f "tokens=2 delims=:, " %%v in ('findstr /r "\"version\"" package.json') do (
   set CURRENT_VER=%%~v
 )
-echo Version actual: %CURRENT_VER%
+echo Version actual: !CURRENT_VER!
 echo.
 
 set /p NEW_VER=Nueva version (Enter para incrementar automatico):
 
-if "%NEW_VER%"=="" (
+if "!NEW_VER!"=="" (
   REM Incrementar el ultimo numero automaticamente
-  for /f "tokens=1,2,3 delims=." %%a in ("%CURRENT_VER%") do (
+  for /f "tokens=1,2,3 delims=." %%a in ("!CURRENT_VER!") do (
     set /a PATCH=%%c+1
     set NEW_VER=%%a.%%b.!PATCH!
   )
 )
 
-REM Habilitar delayed expansion para usar !NEW_VER!
-setlocal enabledelayedexpansion
-
-if "%NEW_VER%"=="" set NEW_VER=%CURRENT_VER%
+if "!NEW_VER!"=="" set NEW_VER=!CURRENT_VER!
 
 echo Nueva version: !NEW_VER!
 
 REM Actualizar version en package.json
-powershell -Command "(Get-Content package.json) -replace '\"version\": \"%CURRENT_VER%\"', '\"version\": \"!NEW_VER!\"' | Set-Content package.json"
+powershell -Command "(Get-Content package.json) -replace '\"version\": \"!CURRENT_VER!\"', '\"version\": \"!NEW_VER!\"' | Set-Content package.json"
 
 git add -A
 
