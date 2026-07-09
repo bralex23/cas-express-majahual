@@ -18,7 +18,7 @@ import {
   formatMoneda, formatFecha, hoy, FRECUENCIAS,
 } from '../../../src/utils/calculos';
 import { StaggerItem } from '../../../src/components/FadeIn';
-import { generarPDFPrestamo, generarPDFContrato, generarPDFSolicitud, generarPDFFicha, generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFCancelado, compartir } from '../../../src/utils/pdf';
+import { generarPDFPrestamo, generarPDFContrato, generarPDFSolicitud, generarPDFFicha, generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFCancelado, generarPDFPagare, compartir } from '../../../src/utils/pdf';
 
 const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 function diaSemana(fecha: string) {
@@ -323,6 +323,14 @@ export default function DetallePrestamo() {
     setPdfLoad(false);
   }
 
+  async function generarPagare() {
+    if (!prestamo) return;
+    setPdfLoad(true);
+    try { const uri = await generarPDFPagare(prestamo); await compartir(uri); }
+    catch(e) { console.error('Error al generar pagaré:', e); }
+    setPdfLoad(false);
+  }
+
   function comprimirABase64(uri: string, maxW = 1600, calidad = 0.8): Promise<string> {
     return new Promise((resolve, reject) => {
       const img = new (window as any).Image() as HTMLImageElement;
@@ -507,6 +515,11 @@ export default function DetallePrestamo() {
               🏆 Imprimir Recibo de Cancelación
             </Button>
           )}
+          <Button mode="outlined" icon="file-document-edit-outline" onPress={generarPagare}
+            loading={pdfLoading}
+            style={{borderColor:'#7b1fa2',borderRadius:8}} textColor="#7b1fa2">
+            Pagaré Sin Protesto
+          </Button>
           {isSupervisor && (
             <View style={{flexDirection:'row',gap:8}}>
               <Button mode="outlined" icon="pencil" onPress={abrirEditar}

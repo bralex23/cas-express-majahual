@@ -158,7 +158,9 @@ export default function CuadroCobrador() {
   async function guardarEnSistema() {
     setGuardando(true);
     try {
-      await addDoc(collection(db, col('cuadros_cobrador')), {
+      const colName = col('cuadros_cobrador');
+      console.log('[Guardar] Colección:', colName);
+      await addDoc(collection(db, colName), {
         cobrador:    cobrador.trim(),
         ruta:        ruta.trim(),
         mes,
@@ -178,8 +180,10 @@ export default function CuadroCobrador() {
         created_at:  serverTimestamp(),
       });
       await cargarHistorial();
+      Alert.alert('Guardado', 'Cuadro guardado correctamente en el sistema.');
     } catch (e: any) {
-      console.warn('Error guardando cuadro:', e?.message);
+      console.error('Error guardando cuadro:', e?.message, e?.code);
+      Alert.alert('Error al guardar', `${e?.message || String(e)}\nCódigo: ${e?.code || 'N/A'}`);
     }
     setGuardando(false);
   }
@@ -204,7 +208,7 @@ export default function CuadroCobrador() {
   const cobroTotal  = totQ1 + totQ2;
   const cartAnt     = numOr0(carteraAnt);
   const cartAct     = numOr0(carteraAct);
-  const diferencia  = cartAnt - cartAct;
+  const diferencia  = cartAct - cartAnt;
   const mora        = numOr0(moraAmt);
   const efectividad = cartAnt > 0 ? (cobroTotal / cartAnt) * 100 : 0;
   const moraPct     = cartAnt > 0 ? (mora / cartAnt) * 100 : 0;
@@ -311,11 +315,11 @@ export default function CuadroCobrador() {
         <Card.Content style={{ gap: 10 }}>
           <Text style={[s.secLabel, { color: C.textSub }]}>CARTERA</Text>
           <View style={s.row2}>
-            <TextInput label="Cartera anterior ($)" value={carteraAnt} onChangeText={setCarteraAnt}
+            <TextInput label="Cartera actual ($)" value={carteraAct} onChangeText={setCarteraAct}
               mode="outlined" keyboardType="decimal-pad" style={{ flex: 1 }}
               outlineColor={C.border} textColor={C.text}
               left={<TextInput.Icon icon="currency-usd" />}/>
-            <TextInput label="Cartera actual ($)" value={carteraAct} onChangeText={setCarteraAct}
+            <TextInput label="Cartera anterior ($)" value={carteraAnt} onChangeText={setCarteraAnt}
               mode="outlined" keyboardType="decimal-pad" style={{ flex: 1 }}
               outlineColor={C.border} textColor={C.text}
               left={<TextInput.Icon icon="currency-usd" />}/>

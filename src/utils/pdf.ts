@@ -26,7 +26,10 @@ export function setModoCMY(activo: boolean) { _modoCMY = activo; }
 /* ── Imprimir HTML: Electron → PDF en visor del sistema | Browser/CMY → iframe ── */
 /* ── Detectar contexto de ejecución ──────────────────────────────────────── */
 function _isCapacitor(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).Capacitor;
+  // Capacitor inicializa window.Capacitor incluso en web/Electron (es la librería misma).
+  // isNativePlatform() devuelve true SOLO en Android/iOS real — nunca en Electron.
+  const cap = typeof window !== 'undefined' ? (window as any).Capacitor : undefined;
+  return !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
 }
 
 /* ── Capacitor: generar PDF con jsPDF y compartir vía share sheet ────────── */
@@ -276,6 +279,147 @@ function numeroALetras(n: number): string {
   return txt + ' DÓLARES DE LOS ESTADOS UNIDOS DE AMERICA';
 }
 
+function _numLetras(n: number): string {
+  // Devuelve el número entero en letras (mayúsculas), sin decimales ni moneda
+  const u = ['','UN','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE',
+              'DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS',
+              'DIECISIETE','DIECIOCHO','DIECINUEVE'];
+  const d = ['','','VEINTE','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'];
+  const c = ['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS',
+             'SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];
+  function grupo(x: number): string {
+    if (x === 0) return '';
+    if (x === 100) return 'CIEN';
+    const h = Math.floor(x/100), r = x%100;
+    const cientos = h ? c[h] + (r ? ' ' : '') : '';
+    if (r === 0) return cientos;
+    if (r < 20)  return cientos + u[r];
+    const di = Math.floor(r/10), uni = r%10;
+    return cientos + d[di] + (uni ? ' Y ' + u[uni] : '');
+  }
+  const int = Math.floor(Math.abs(n));
+  const miles = Math.floor(int/1000), resto = int%1000;
+  let txt = '';
+  if (miles > 0) txt += (miles === 1 ? 'MIL ' : grupo(miles) + ' MIL ');
+  txt += grupo(resto);
+  return txt.trim();
+}
+
+function _montoLetrasPagare(n: number): string {
+  const int = Math.floor(n);
+  const dec = Math.round((n - int) * 100);
+  return _numLetras(int)
+    + (dec > 0 ? ` CON ${String(dec).padStart(2,'0')}/100` : ' CON 00/100')
+    + ' DÓLARES DE LOS ESTADOS UNIDOS DE AMERICA';
+}
+
+function _fechaLetrasPagare(fecha: string): string {
+  // YYYY-MM-DD → "DIEZ DE ENERO del año DOS MIL VEINTISÉIS"
+  const [y, m, d] = fecha.split('-').map(Number);
+  const MESES = ['','ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO',
+                 'JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  return `${_numLetras(d)} DE ${MESES[m]} del año ${_numLetras(y)}`;
+}
+
+function _fechaFirmaPagare(fecha: string): string {
+  // YYYY-MM-DD → "diez días del mes de enero del año dos mil veintiséis"
+  const [y, m, d] = fecha.split('-').map(Number);
+  const MESES = ['','enero','febrero','marzo','abril','mayo','junio',
+                 'julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${_numLetras(d).toLowerCase()} días del mes de ${MESES[m]} del año ${_numLetras(y).toLowerCase()}`;
+}
+
+function _plazoLetras(plazo: number, frecuencia: string): string {
+  const n = _numLetras(plazo);
+  if (frecuencia === 'mensual') return `${n} ${plazo === 1 ? 'MES' : 'MESES'}`;
+  if (frecuencia === 'semanal') return `${n} ${plazo === 1 ? 'SEMANA' : 'SEMANAS'}`;
+  return `${n} ${plazo === 1 ? 'DÍA' : 'DÍAS'}`;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PAGARÉ SIN PROTESTO
+   ══════════════════════════════════════════════════════════════ */
+export async function generarPDFPagare(prestamo: any) {
+  const c = prestamo.cliente || {};
+  const fechaFirma  = prestamo.fecha_inicio || new Date().toISOString().split('T')[0];
+  const montoStr    = _montoLetrasPagare(prestamo.monto_total ?? prestamo.monto);
+  const montoFmt    = `$${(prestamo.monto_total ?? prestamo.monto).toFixed(2)}`;
+  const plazoStr    = _plazoLetras(prestamo.plazo, prestamo.frecuencia);
+  const venceStr    = _fechaLetrasPagare(prestamo.fecha_fin);
+  const firmaStr    = _fechaFirmaPagare(fechaFirma);
+  const nombre      = c.nombre   || '___________________________';
+  const edad        = c.edad     || '___';
+  const profesion   = c.profesion || 'Empleado';
+  const domicilio   = c.direccion || 'Distrito de Tamanique, Municipio de La Libertad Costa, Departamento de La Libertad';
+  const dui         = c.dui      || '___________________________';
+  const nit         = c.nit      || '___________________________';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    @page{margin:18mm 20mm;size:letter portrait}
+    *{box-sizing:border-box}
+    body{font-family:'Times New Roman',Times,serif;font-size:13px;color:#111;margin:0;line-height:1.85;text-align:justify}
+    .titulo{text-align:center;font-size:18px;font-weight:900;letter-spacing:2px;margin-bottom:4px}
+    .subtitulo{text-align:center;font-size:14px;font-weight:700;margin-bottom:24px}
+    .cuerpo{margin-bottom:20px}
+    .lugar{margin-bottom:32px}
+    .firmas{margin-top:12px}
+    .firma-linea{border-bottom:1.5px solid #333;min-width:280px;display:inline-block;margin-bottom:2px}
+    .campo{font-weight:bold;text-decoration:underline}
+    .fila-firma{margin-bottom:8px;font-size:13px}
+    b{font-weight:900}
+  </style></head><body>
+
+  <div class="titulo">PAGARÉ</div>
+  <div class="subtitulo">"SIN PROTESTO"</div>
+
+  <div class="cuerpo">
+    Por este <b>PAGARÉ, SIN PROTESTO</b>, me obligo a pagar, a la orden del señor:
+    <span class="campo">&nbsp;${nombre}&nbsp;</span>,
+    quien es de <span class="campo">&nbsp;${edad}&nbsp;</span> años de edad,
+    <span class="campo">&nbsp;${profesion}&nbsp;</span>,
+    del domicilio del <span class="campo">&nbsp;${domicilio}&nbsp;</span>,
+    portador de su Documento Único de Identidad homologado con el Número de
+    Identificación Tributaria <span class="campo">&nbsp;${nit}&nbsp;</span>,
+    la suma de <b>${montoStr} (${montoFmt})</b>;
+    sin interés, para el plazo de <b>${plazoStr}</b>,
+    siendo pagadera en una sola cuota de
+    <b>${montoStr} (${montoFmt})</b>;
+    el pago lo hará en efectivo en el Distrito de Tamanique,
+    Municipio La Libertad Costa, Departamento de La Libertad;
+    por lo que la deuda será pagada completamente a más tardar el día
+    <b>${venceStr}</b>.
+    Para todos los efectos de esta obligación fijo como domicilio especial
+    el distrito de La Libertad Costa, Departamento de La Libertad, y en caso
+    de acción judicial renuncio al derecho de apelar del decreto de embargo,
+    de la sentencia de remate y de otra providencia apelable, que se dictare
+    en el juicio ejecutivo o en sus incidencias, siendo a mi cargo cualquier
+    gasto que el señor <span class="campo">&nbsp;${nombre}&nbsp;</span> hiciere
+    en el cobro de este pagaré, inclusive los llamados personales y aun cuando
+    por regla general no hubiere condenación en costas y lo faculto, para que
+    de ser necesario designe la persona depositaria de los bienes que se embarguen,
+    a quien relevo de la obligación de rendir fianza y cuentas.
+  </div>
+
+  <div class="lugar">
+    En la Población del Distrito de Tamanique, Municipio de La Libertad Costa,
+    Departamento de La Libertad, a los <b>${firmaStr}</b>.
+  </div>
+
+  <div class="firmas">
+    <div class="fila-firma">
+      <b>FIRMA:</b>&nbsp;&nbsp;<span class="firma-linea">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+    </div>
+    <div class="fila-firma"><b>DEUDOR:</b> <span class="campo">&nbsp;${nombre}&nbsp;</span></div>
+    <div class="fila-firma"><b>EDAD:</b> <span class="campo">&nbsp;${edad}&nbsp;</span> años de edad.</div>
+    <div class="fila-firma"><b>OFICIO O PROFESION:</b> <span class="campo">&nbsp;${profesion}&nbsp;</span>.</div>
+    <div class="fila-firma"><b>DOMICILIO:</b> <span class="campo">&nbsp;${domicilio}&nbsp;</span>.</div>
+    <div class="fila-firma"><b>DUI, No.</b> <span class="campo">&nbsp;${dui}&nbsp;</span></div>
+  </div>
+
+  </body></html>`;
+  return imprimir(html);
+}
+
 const PAGE_RESET = `@page{margin:0;size:letter portrait}`;
 
 const baseStyle = `
@@ -386,8 +530,7 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
       <td style="width:auto"><span class="lbl">CICLO:</span><br/><span class="campo">&nbsp;${prestamo.numero_credito ?? ''}&nbsp;</span></td>
     </tr></table>
     <table class="linea"><tr>
-      <td><span class="lbl">CUOTA:</span><br/><span class="campo">&nbsp;${formatMoneda(prestamo.cuota)}&nbsp;</span></td>
-      <td><span class="lbl">Nº DE EXPEDIENTE:</span><br/><span class="campo">&nbsp;${fmtExp(c?.numero_expediente)}&nbsp;</span></td>
+      <td style="width:100%"><span class="lbl">Nº DE EXPEDIENTE:</span><br/><span class="campo">&nbsp;${fmtExp(c?.numero_expediente)}&nbsp;</span></td>
     </tr></table>
     <table class="linea"><tr>
       <td><span class="lbl">SUCURSAL:</span><br/><span class="campo">&nbsp;</span></td>
@@ -414,9 +557,6 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
     ME CONSTITUYO DEUDOR(A) DE LA INSTITUCIÓN ${EMPRESA}, POR UN CRÉDITO APROBADO ESTE DÍA DE LA CANTIDAD DE
     $&nbsp;<b>${prestamo.monto.toFixed(2)}</b>&nbsp;${enLetras}, PARA UN PLAZO DE
     &nbsp;<span style="border-bottom:1px solid #333;padding:0 24px">&nbsp;${prestamo.plazo}&nbsp;</span>&nbsp;
-    CON UNA CUOTA DE&nbsp;<span style="border-bottom:1px solid #333;padding:0 24px">&nbsp;${formatMoneda(prestamo.cuota)}&nbsp;</span>&nbsp;
-    ${diasSemana[prestamo.frecuencia]||''}
-    &nbsp;DIA DE PAGO&nbsp;<span style="border-bottom:1px solid #333;padding:0 50px">&nbsp;${formatFecha(prestamo.fecha_inicio)}&nbsp;</span>&nbsp;
     EN EL CUAL ME OBLIGO A PAGAR EN EL TIEMPO Y FORMA ESTABLECIDO.
     TAMBIÉN HAGO CONSTAR QUE ME COMPROMETO A PAGAR LA MORA ESTABLECIDA EN CASO DE INCUMPLIMIENTO CON LA FECHA ACORDADA.
   </div>
@@ -1151,9 +1291,14 @@ function _bloqueReporteDiario(
 
     <!-- ── Firmas ── -->
     <table class="firmas-tbl"><tr>
-      <td class="firma-campo">NOMBRE</td>
+      <td class="firma-campo">NOMBRE COBRADOR</td>
       <td class="firma-sep"></td>
-      <td class="firma-campo">FIRMA</td>
+      <td class="firma-campo">FIRMA COBRADOR</td>
+    </tr></table>
+    <table class="firmas-tbl" style="margin-top:14px"><tr>
+      <td class="firma-campo">NOMBRE ADMINISTRADOR</td>
+      <td class="firma-sep"></td>
+      <td class="firma-campo">V°B° ADMINISTRADOR</td>
     </tr></table>`;
 }
 

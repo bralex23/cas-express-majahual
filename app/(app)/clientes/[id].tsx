@@ -12,7 +12,7 @@ const w = (s: any) => s;
 import { Cliente, Prestamo } from '../../../src/types';
 import { formatMoneda, formatFecha, hoy } from '../../../src/utils/calculos';
 import { StaggerItem } from '../../../src/components/FadeIn';
-import { generarPDFCopiaDUI, generarPDFReciboLuz } from '../../../src/utils/pdf';
+import { generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFPagare } from '../../../src/utils/pdf';
 
 /* ── Tipos ── */
 interface Garantia {
@@ -100,6 +100,14 @@ export default function DetalleCliente() {
   const [gFoto, setGFoto]                   = useState('');
   const [gGuardando, setGGuardando]         = useState(false);
   const [gViewer, setGViewer]               = useState<Garantia|null>(null);
+  /* Editar datos extra (edad, profesión, NIT) */
+  const [modalDatos, setModalDatos]         = useState(false);
+  const [dEdad, setDEdad]                   = useState('');
+  const [dProfesion, setDProfesion]         = useState('');
+  const [dNit, setDNit]                     = useState('');
+  const [dGuardando, setDGuardando]         = useState(false);
+  /* PDF loading */
+  const [pdfLoading, setPdfLoading]         = useState(false);
 
   const { col } = useEmpresa();
 
@@ -157,6 +165,42 @@ export default function DetalleCliente() {
     if (!window.confirm('¿Eliminar esta garantía?')) return;
     await deleteDoc(doc(db, col('clientes'), id, 'garantias', gId));
     setGarantias(prev => prev.filter(g => g.id !== gId));
+  }
+
+  /* ── Abrir modal datos extra ── */
+  function abrirDatos() {
+    if (!cliente) return;
+    setDEdad(cliente.edad || '');
+    setDProfesion(cliente.profesion || '');
+    setDNit(cliente.nit || '');
+    setModalDatos(true);
+  }
+
+  /* ── Guardar edad/profesión/NIT en Firestore ── */
+  async function guardarDatos() {
+    setDGuardando(true);
+    try {
+      await updateDoc(doc(db, col('clientes'), id), {
+        edad: dEdad.trim(), profesion: dProfesion.trim(), nit: dNit.trim(),
+      });
+      setCliente(prev => prev
+        ? { ...prev, edad: dEdad.trim(), profesion: dProfesion.trim(), nit: dNit.trim() }
+        : prev);
+      setModalDatos(false);
+    } catch(e:any) { Alert.alert('Error', e?.message || 'No se pudo guardar.'); }
+    setDGuardando(false);
+  }
+
+  /* ── Generar Pagaré desde la pantalla del cliente (usa el préstamo activo más reciente) ── */
+  async function generarPagareDesdCliente() {
+    const activo = [...prestamos]
+      .filter(p => p.estado === 'activo' || p.estado === 'mora')
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+    if (!activo) { Alert.alert('Sin préstamo activo', 'Este cliente no tiene préstamos activos.'); return; }
+    setPdfLoading(true);
+    try { await generarPDFPagare({ ...activo, cliente }); }
+    catch(e) { console.error('Error al generar pagaré:', e); }
+    setPdfLoading(false);
   }
 
   async function confirmarBorrar() {
@@ -238,6 +282,28 @@ export default function DetalleCliente() {
           </Card.Content>
         </Card>
       )}
+
+      {/* ══ DATOS PARA PAGARÉ (edad, profesión, NIT) ══ */}
+      <Card style={[s.card,{marginTop:10}]}>
+        <Card.Content>
+          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+            <Text style={s.secTitulo}>📄 Datos para Pagaré</Text>
+            <TouchableOpacity onPress={abrirDatos}
+              style={{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:10,paddingVertical:5,borderRadius:8,borderWidth:1,borderColor:C.primary}}>
+              <MaterialCommunityIcons name="pencil" size={13} color={C.primary}/>
+              <Text style={{fontSize:12,fontWeight:'700',color:C.primary}}>Editar</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={{fontSize:12,color:C.textSec}}>Edad: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.edad || '—'}</Text></Text>
+          <Text style={{fontSize:12,color:C.textSec}}>Profesión: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.profesion || '—'}</Text></Text>
+          <Text style={{fontSize:12,color:C.textSec}}>NIT: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.nit || '—'}</Text></Text>
+          <Button mode="outlined" icon="file-document-edit-outline" onPress={generarPagareDesdCliente}
+            loading={pdfLoading}
+            style={{marginTop:10,borderColor:'#7b1fa2',borderRadius:8}} textColor="#7b1fa2">
+            Generar Pagaré Sin Protesto
+          </Button>
+        </Card.Content>
+      </Card>
 
       {/* ══ GARANTÍAS ══ */}
       <Card style={[s.card, { marginTop: 10 }]}>
@@ -555,6 +621,26 @@ export default function DetalleCliente() {
                 style={{flex:1,backgroundColor:'#c62828'}}>
                 {prestamos.length > 0 ? 'Desactivar' : 'Eliminar'}
               </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal editar datos pagaré (edad, profesión, NIT) */}
+      <Modal visible={modalDatos} transparent animationType="fade">
+        <View style={s.overlay}>
+          <View style={s.modalBox}>
+            <Text style={[s.modalTit,{color:C.primary}]}>✏️ Datos para Pagaré</Text>
+            <TextInput label="Edad" value={dEdad} onChangeText={setDEdad}
+              keyboardType="numeric" mode="outlined" dense style={{marginBottom:10}}/>
+            <TextInput label="Profesión / Oficio" value={dProfesion} onChangeText={setDProfesion}
+              mode="outlined" dense style={{marginBottom:10}}/>
+            <TextInput label="NIT" value={dNit} onChangeText={setDNit}
+              mode="outlined" dense style={{marginBottom:14}}/>
+            <View style={s.modalBtns}>
+              <Button mode="outlined" onPress={()=>setModalDatos(false)} style={{flex:1}}>Cancelar</Button>
+              <Button mode="contained" onPress={guardarDatos} loading={dGuardando}
+                style={{flex:1}} buttonColor={C.primary} textColor="#fff">Guardar</Button>
             </View>
           </View>
         </View>

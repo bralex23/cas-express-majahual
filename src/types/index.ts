@@ -41,6 +41,9 @@ export interface Cliente {
   ref2_nombre?: string;
   ref2_telefono?: string;
   ref2_parentesco?: string;
+  edad?: string;
+  profesion?: string;
+  nit?: string;
   created_at: string;
   ruta?: Ruta;
 }

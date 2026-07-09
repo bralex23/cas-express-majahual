@@ -746,25 +746,25 @@ ipcMain.handle('generate-cuadro-cobrador', async (_event, datos) => {
   setCell(ws,1,4,ruta.toUpperCase(), { font:{bold:true,size:11,color:{argb:NAVY}}, alignment:center });
   ws.getRow(1).height = 18;
 
-  // ── Fila 2: Cartera anterior ──
-  setCell(ws,2,1,'Cartera anterior', { font:{size:10}, alignment:left });
-  setCell(ws,2,2,'$',                { font:{size:10}, alignment:right });
-  setCell(ws,2,3,'',                 {});
-  setCell(ws,2,4,Number(carteraAnt),  { font:{bold:true,size:10}, alignment:right, numFmt:fmtM });
+  // ── Fila 2: Cartera actual ──
+  setCell(ws,2,1,'Cartera actual', { font:{size:10}, alignment:left });
+  setCell(ws,2,2,'$',              { font:{size:10}, alignment:right });
+  setCell(ws,2,3,'',               {});
+  setCell(ws,2,4,Number(carteraAct), { font:{bold:true,size:10}, alignment:right, numFmt:fmtM });
 
-  // ── Fila 3: Cartera actual ──
-  setCell(ws,3,1,'Cartera actual', { font:{size:10}, alignment:left });
-  setCell(ws,3,2,'$',              { font:{size:10}, alignment:right });
-  setCell(ws,3,3,'',               {});
-  setCell(ws,3,4,Number(carteraAct), { font:{bold:true,size:10}, alignment:right, numFmt:fmtM });
+  // ── Fila 3: Cartera anterior ──
+  setCell(ws,3,1,'Cartera anterior', { font:{size:10}, alignment:left });
+  setCell(ws,3,2,'$',                { font:{size:10}, alignment:right });
+  setCell(ws,3,3,'',                 {});
+  setCell(ws,3,4,Number(carteraAnt),  { font:{bold:true,size:10}, alignment:right, numFmt:fmtM });
 
-  // ── Fila 4: DIFERENCIA — fórmula =D2-D3 ──
+  // ── Fila 4: DIFERENCIA — fórmula =D2-D3 (actual - anterior) ──
   setCell(ws,4,1,'DIFERENCIA', { font:{bold:true,size:10}, alignment:left });
   setCell(ws,4,2,'-$',         { font:{bold:true,size:10}, alignment:right });
   setCell(ws,4,3,'',           {});
   const d4 = ws.getCell(4,4);
-  d4.value  = { formula:'D2-D3', result: Number(carteraAnt)-Number(carteraAct) };
-  d4.numFmt = fmtM; d4.font = { bold:true, size:10, color:{argb: (Number(carteraAnt)-Number(carteraAct)) < 0 ? 'FFCC0000' : 'FF006600'} };
+  d4.value  = { formula:'D2-D3', result: Number(carteraAct)-Number(carteraAnt) };
+  d4.numFmt = fmtM; d4.font = { bold:true, size:10, color:{argb: (Number(carteraAct)-Number(carteraAnt)) < 0 ? 'FFCC0000' : 'FF006600'} };
   d4.alignment = right; d4.border = bdr;
   ws.getRow(4).height = 15;
 
