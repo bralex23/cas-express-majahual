@@ -222,7 +222,7 @@ export default function Cobros() {
         tipo:              esCompleto ? 'completo' : 'abono',
         fecha_vencimiento: cuota.fv,
         fecha_pago:        fechaPagoVal,
-        cobrador_id:       perfil?.id,
+        cobrador_id:       perfil?.id ?? null,
         created_at:        new Date().toISOString(),
       }));
       esPrimera = false;
@@ -238,7 +238,7 @@ export default function Cobros() {
         mora:         0,
         tipo:         'multa',
         fecha_pago:   fechaPagoVal,
-        cobrador_id:  perfil?.id,
+        cobrador_id:  perfil?.id ?? null,
         created_at:   new Date().toISOString(),
       }));
     }

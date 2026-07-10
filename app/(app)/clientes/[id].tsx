@@ -12,7 +12,7 @@ const w = (s: any) => s;
 import { Cliente, Prestamo } from '../../../src/types';
 import { formatMoneda, formatFecha, hoy } from '../../../src/utils/calculos';
 import { StaggerItem } from '../../../src/components/FadeIn';
-import { generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFPagare } from '../../../src/utils/pdf';
+import { generarPDFCopiaDUI, generarPDFReciboLuz } from '../../../src/utils/pdf';
 
 /* ── Tipos ── */
 interface Garantia {
@@ -54,7 +54,7 @@ async function imprimirGarantias(cliente: Cliente, garantias: Garantia[]) {
       body{font-family:Arial,sans-serif;padding:20px 24px;font-size:12px;color:#111;max-width:740px;margin:0 auto}
       @page{size:letter;margin:14mm}
     </style></head><body>
-    <div style="text-align:center;font-size:16px;font-weight:900;color:#1b5e20;margin-bottom:4px">CAS EXPRESS RUTA MAJAHUAL TAMANIQUE</div>
+    <div style="text-align:center;font-size:16px;font-weight:900;color:#1b5e20;margin-bottom:4px">SOLUCIONES FINANCIERAS CAS EXPRESS</div>
     <div style="text-align:center;font-size:14px;font-weight:bold;border:2px solid #1b5e20;padding:5px;margin-bottom:12px">REGISTRO DE GARANTÍAS</div>
     <div style="margin-bottom:14px;font-size:13px">
       <b>Cliente:</b> ${cliente.nombre}&nbsp;&nbsp;
@@ -100,12 +100,10 @@ export default function DetalleCliente() {
   const [gFoto, setGFoto]                   = useState('');
   const [gGuardando, setGGuardando]         = useState(false);
   const [gViewer, setGViewer]               = useState<Garantia|null>(null);
-  /* Editar datos extra (edad, profesión, NIT) */
-  const [modalDatos, setModalDatos]         = useState(false);
-  const [dEdad, setDEdad]                   = useState('');
-  const [dProfesion, setDProfesion]         = useState('');
-  const [dNit, setDNit]                     = useState('');
-  const [dGuardando, setDGuardando]         = useState(false);
+  /* Editar correo del cliente */
+  const [modalEmail, setModalEmail]         = useState(false);
+  const [dEmail, setDEmail]                 = useState('');
+  const [emailGuardando, setEmailGuardando] = useState(false);
   /* PDF loading */
   const [pdfLoading, setPdfLoading]         = useState(false);
 
@@ -167,40 +165,22 @@ export default function DetalleCliente() {
     setGarantias(prev => prev.filter(g => g.id !== gId));
   }
 
-  /* ── Abrir modal datos extra ── */
-  function abrirDatos() {
+  /* ── Abrir modal correo ── */
+  function abrirEmail() {
     if (!cliente) return;
-    setDEdad(cliente.edad || '');
-    setDProfesion(cliente.profesion || '');
-    setDNit(cliente.nit || '');
-    setModalDatos(true);
+    setDEmail(cliente.email || '');
+    setModalEmail(true);
   }
 
-  /* ── Guardar edad/profesión/NIT en Firestore ── */
-  async function guardarDatos() {
-    setDGuardando(true);
+  /* ── Guardar correo en Firestore ── */
+  async function guardarEmail() {
+    setEmailGuardando(true);
     try {
-      await updateDoc(doc(db, col('clientes'), id), {
-        edad: dEdad.trim(), profesion: dProfesion.trim(), nit: dNit.trim(),
-      });
-      setCliente(prev => prev
-        ? { ...prev, edad: dEdad.trim(), profesion: dProfesion.trim(), nit: dNit.trim() }
-        : prev);
-      setModalDatos(false);
+      await updateDoc(doc(db, col('clientes'), id), { email: dEmail.trim() });
+      setCliente(prev => prev ? { ...prev, email: dEmail.trim() } : prev);
+      setModalEmail(false);
     } catch(e:any) { Alert.alert('Error', e?.message || 'No se pudo guardar.'); }
-    setDGuardando(false);
-  }
-
-  /* ── Generar Pagaré desde la pantalla del cliente (usa el préstamo activo más reciente) ── */
-  async function generarPagareDesdCliente() {
-    const activo = [...prestamos]
-      .filter(p => p.estado === 'activo' || p.estado === 'mora')
-      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
-    if (!activo) { Alert.alert('Sin préstamo activo', 'Este cliente no tiene préstamos activos.'); return; }
-    setPdfLoading(true);
-    try { await generarPDFPagare({ ...activo, cliente }); }
-    catch(e) { console.error('Error al generar pagaré:', e); }
-    setPdfLoading(false);
+    setEmailGuardando(false);
   }
 
   async function confirmarBorrar() {
@@ -261,6 +241,12 @@ export default function DetalleCliente() {
                 <Text style={s.link}>📍 Ver en Google Maps</Text>
               </TouchableOpacity>
             )}
+            <TouchableOpacity onPress={abrirEmail} style={{flexDirection:'row',alignItems:'center',gap:4,marginTop:4}}>
+              {cliente.email
+                ? <Text style={s.link}>✉️ {cliente.email}</Text>
+                : <Text style={{fontSize:12,color:C.textTer}}>✉️ <Text style={{color:C.primaryText,textDecorationLine:'underline'}}>Agregar correo electrónico</Text></Text>
+              }
+            </TouchableOpacity>
           </View>
         </Card.Content>
       </Card>
@@ -282,28 +268,6 @@ export default function DetalleCliente() {
           </Card.Content>
         </Card>
       )}
-
-      {/* ══ DATOS PARA PAGARÉ (edad, profesión, NIT) ══ */}
-      <Card style={[s.card,{marginTop:10}]}>
-        <Card.Content>
-          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
-            <Text style={s.secTitulo}>📄 Datos para Pagaré</Text>
-            <TouchableOpacity onPress={abrirDatos}
-              style={{flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:10,paddingVertical:5,borderRadius:8,borderWidth:1,borderColor:C.primary}}>
-              <MaterialCommunityIcons name="pencil" size={13} color={C.primary}/>
-              <Text style={{fontSize:12,fontWeight:'700',color:C.primary}}>Editar</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={{fontSize:12,color:C.textSec}}>Edad: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.edad || '—'}</Text></Text>
-          <Text style={{fontSize:12,color:C.textSec}}>Profesión: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.profesion || '—'}</Text></Text>
-          <Text style={{fontSize:12,color:C.textSec}}>NIT: <Text style={{color:C.text,fontWeight:'600'}}>{cliente.nit || '—'}</Text></Text>
-          <Button mode="outlined" icon="file-document-edit-outline" onPress={generarPagareDesdCliente}
-            loading={pdfLoading}
-            style={{marginTop:10,borderColor:'#7b1fa2',borderRadius:8}} textColor="#7b1fa2">
-            Generar Pagaré Sin Protesto
-          </Button>
-        </Card.Content>
-      </Card>
 
       {/* ══ GARANTÍAS ══ */}
       <Card style={[s.card, { marginTop: 10 }]}>
@@ -458,43 +422,56 @@ export default function DetalleCliente() {
         );
       })()}
 
-      {/* Botones */}
-      <View style={s.btns}>
-        <View style={{ alignItems:'center', gap:4 }}>
-          <Button mode="outlined" icon="card-account-details" textColor={C.primary}
-            style={{ borderColor:C.primary }}
-            onPress={() => generarPDFCopiaDUI(cliente, duiSoloImg)}>
-            Copia DUI
-          </Button>
+      {/* Botones de acción — cuadrícula de íconos */}
+      <View style={s.accionGrid}>
+        {/* DUI */}
+        <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(66,165,245,0.15)'}]}
+          onPress={() => generarPDFCopiaDUI(cliente, duiSoloImg)}>
+          <MaterialCommunityIcons name="card-account-details" size={26} color="#42a5f5"/>
+          <Text style={[s.accionLbl,{color:'#42a5f5'}]}>Copia DUI</Text>
+          {/* Toggle solo imágenes */}
           <TouchableOpacity onPress={() => setDuiSoloImg(v => !v)}
-            style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
-            <View style={{ width:14, height:14, borderRadius:3, borderWidth:1.5,
-              borderColor:C.primary, backgroundColor: duiSoloImg ? C.primary : 'transparent',
-              alignItems:'center', justifyContent:'center' }}>
-              {duiSoloImg && <Text style={{ color:'#fff', fontSize:9, lineHeight:11 }}>✓</Text>}
+            style={{flexDirection:'row',alignItems:'center',gap:3,marginTop:2}}>
+            <View style={{width:12,height:12,borderRadius:3,borderWidth:1.5,
+              borderColor:'#42a5f5',
+              backgroundColor: duiSoloImg ? '#42a5f5' : 'transparent',
+              alignItems:'center',justifyContent:'center'}}>
+              {duiSoloImg && <Text style={{color:'#fff',fontSize:8,lineHeight:10}}>✓</Text>}
             </View>
-            <Text style={{ fontSize:11, color:C.primary }}>Solo imágenes</Text>
+            <Text style={{fontSize:9,color:'#42a5f5'}}>Solo img</Text>
           </TouchableOpacity>
-        </View>
-        {cliente.recibo_luz_url && (
-          <Button mode="outlined" icon="lightning-bolt" textColor="#f57f17"
-            style={{ borderColor:'#f57f17' }}
-            onPress={() => generarPDFReciboLuz(cliente)}>
-            Recibo Luz
-          </Button>
-        )}
-        {isSupervisor && (
-          <Button mode="outlined" icon="pencil" onPress={() => router.push({ pathname:'/(app)/clientes/nuevo', params:{ id } })}>
-            Editar
-          </Button>
-        )}
-        {isAdmin && (
-          <Button mode="outlined" icon="delete" textColor="#c62828"
-            style={{borderColor:'#c62828'}} onPress={()=>setModalBorrar(true)}>
-            Borrar
-          </Button>
-        )}
-        <Button mode="text" onPress={() => router.back()}>Volver</Button>
+        </TouchableOpacity>
+
+        {/* Recibo Luz */}
+        {cliente.recibo_luz_url
+          ? <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(245,127,23,0.15)'}]}
+              onPress={() => generarPDFReciboLuz(cliente)}>
+              <MaterialCommunityIcons name="lightning-bolt" size={26} color="#ffa726"/>
+              <Text style={[s.accionLbl,{color:'#ffa726'}]}>Recibo Luz</Text>
+            </TouchableOpacity>
+          : <View style={s.accionBtn}/>
+        }
+
+        {/* Editar */}
+        <TouchableOpacity style={[s.accionBtn,{backgroundColor:C.isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}]}
+          onPress={() => router.push({ pathname:'/(app)/clientes/nuevo', params:{ id } })}>
+          <MaterialCommunityIcons name="pencil" size={26} color={C.textSec}/>
+          <Text style={[s.accionLbl,{color:C.textSec}]}>Editar</Text>
+        </TouchableOpacity>
+
+        {/* Borrar */}
+        <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(198,40,40,0.12)'}]}
+          onPress={() => setModalBorrar(true)}>
+          <MaterialCommunityIcons name="delete-outline" size={26} color="#ef5350"/>
+          <Text style={[s.accionLbl,{color:'#ef5350'}]}>Borrar</Text>
+        </TouchableOpacity>
+
+        {/* Volver */}
+        <TouchableOpacity style={[s.accionBtn,{backgroundColor:C.isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.04)'}]}
+          onPress={() => router.back()}>
+          <MaterialCommunityIcons name="arrow-left" size={26} color={C.textTer}/>
+          <Text style={[s.accionLbl,{color:C.textTer}]}>Volver</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Modal ver recibo de luz */}
@@ -626,20 +603,16 @@ export default function DetalleCliente() {
         </View>
       </Modal>
 
-      {/* Modal editar datos pagaré (edad, profesión, NIT) */}
-      <Modal visible={modalDatos} transparent animationType="fade">
+      {/* Modal correo electrónico */}
+      <Modal visible={modalEmail} transparent animationType="fade">
         <View style={s.overlay}>
           <View style={s.modalBox}>
-            <Text style={[s.modalTit,{color:C.primary}]}>✏️ Datos para Pagaré</Text>
-            <TextInput label="Edad" value={dEdad} onChangeText={setDEdad}
-              keyboardType="numeric" mode="outlined" dense style={{marginBottom:10}}/>
-            <TextInput label="Profesión / Oficio" value={dProfesion} onChangeText={setDProfesion}
-              mode="outlined" dense style={{marginBottom:10}}/>
-            <TextInput label="NIT" value={dNit} onChangeText={setDNit}
-              mode="outlined" dense style={{marginBottom:14}}/>
+            <Text style={[s.modalTit,{color:C.primary}]}>✉️ Correo Electrónico</Text>
+            <TextInput label="Correo del cliente" value={dEmail} onChangeText={setDEmail}
+              keyboardType="email-address" autoCapitalize="none" mode="outlined" dense style={{marginBottom:14}}/>
             <View style={s.modalBtns}>
-              <Button mode="outlined" onPress={()=>setModalDatos(false)} style={{flex:1}}>Cancelar</Button>
-              <Button mode="contained" onPress={guardarDatos} loading={dGuardando}
+              <Button mode="outlined" onPress={()=>setModalEmail(false)} style={{flex:1}}>Cancelar</Button>
+              <Button mode="contained" onPress={guardarEmail} loading={emailGuardando}
                 style={{flex:1}} buttonColor={C.primary} textColor="#fff">Guardar</Button>
             </View>
           </View>
@@ -676,4 +649,9 @@ const makeStyles = (C: any) => StyleSheet.create({
   modalBox:   {backgroundColor:C.surface,borderRadius:16,padding:20},
   modalTit:   {fontSize:16,fontWeight:'800',color:'#c62828',marginBottom:12},
   modalBtns:  {flexDirection:'row',gap:10,marginTop:8},
+  // Botones acción cuadrícula
+  accionGrid: {flexDirection:'row',gap:8,marginTop:16,flexWrap:'wrap'},
+  accionBtn:  {flex:1,minWidth:60,alignItems:'center',justifyContent:'center',borderRadius:12,
+               paddingVertical:12,paddingHorizontal:4,gap:4,minHeight:64},
+  accionLbl:  {fontSize:10,fontWeight:'700',textAlign:'center'},
 });

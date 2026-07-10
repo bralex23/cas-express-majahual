@@ -221,7 +221,7 @@ export default function DetallePrestamo() {
           tipo:              d.completo ? 'completo' : 'abono',
           fecha_vencimiento: d.cuota.fecha_vencimiento,
           fecha_pago:        fechaPago,
-          cobrador_id:       perfil?.id,
+          cobrador_id:       perfil?.id ?? null,
           created_at:        new Date().toISOString(),
         })
       ));
@@ -473,67 +473,72 @@ export default function DetallePrestamo() {
 
       {/* ── Botones de acción ── */}
       <Card style={[s.card, {marginBottom:12}]} elevation={2}>
-        <Card.Content style={{gap:8}}>
-          <View style={{flexDirection:'row',gap:8,flexWrap:'wrap'}}>
-            <Button mode="outlined" icon="file-chart" onPress={generarPDF} loading={pdfLoading}
-              style={{flex:1,borderColor:C.primaryText,borderRadius:8}} textColor={C.primaryText}>
-              Estado
-            </Button>
-            <Button mode="outlined" icon="file-sign" onPress={generarContrato} loading={pdfLoading}
-              style={{flex:1,borderColor:'#4caf50',borderRadius:8}} textColor="#4caf50">
-              Solicitud
-            </Button>
-            <Button mode="outlined" icon="account-details" onPress={generarSolicitud} loading={pdfLoading}
-              style={{flex:1,borderColor:'#ce93d8',borderRadius:8}} textColor="#ce93d8">
-              Contrato
-            </Button>
+        <Card.Content>
+          {/* Fila 1: documentos principales */}
+          <View style={s.accionGrid}>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(66,165,245,0.15)'}]} onPress={generarPDF} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="file-chart" size={24} color="#42a5f5"/>
+              <Text style={[s.accionLbl,{color:'#42a5f5'}]}>Estado</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(76,175,80,0.15)'}]} onPress={generarContrato} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="file-sign" size={24} color="#66bb6a"/>
+              <Text style={[s.accionLbl,{color:'#66bb6a'}]}>Solicitud</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(186,104,200,0.15)'}]} onPress={generarSolicitud} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="handshake" size={24} color="#ce93d8"/>
+              <Text style={[s.accionLbl,{color:'#ce93d8'}]}>Contrato</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(200,169,81,0.15)'}]} onPress={generarFicha} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="calendar-month" size={24} color="#c8a951"/>
+              <Text style={[s.accionLbl,{color:'#c8a951'}]}>Ficha Pago</Text>
+            </TouchableOpacity>
           </View>
-          <Button mode="outlined" icon="card-account-details-outline" onPress={generarFicha}
-            loading={pdfLoading}
-            style={{borderColor:'#c8a951',borderRadius:8}} textColor="#c8a951">
-            Ficha de Pago ({prestamo.plazo <= 22 ? '22 días' : '30 días'})
-          </Button>
-          <View style={{flexDirection:'row',gap:8}}>
-            <Button mode="outlined" icon="card-account-details" onPress={imprimirDUI} loading={pdfLoading}
-              style={{flex:1,borderColor:'#1565c0',borderRadius:8}} textColor="#1565c0">
-              Imprimir DUI
-            </Button>
-            <Button mode="outlined" icon="lightning-bolt" onPress={imprimirRecibo} loading={pdfLoading}
-              style={{flex:1,borderColor:'#f57f17',borderRadius:8}} textColor="#f57f17">
-              Recibo Luz
-            </Button>
-            <Button mode="outlined" icon={prestamo.cliente?.recibo_luz_url ? 'camera-retake' : 'camera-plus'}
-              onPress={agregarReciboLuz} loading={subiendoRecibo}
-              style={{borderColor:'#f57f17',borderRadius:8,minWidth:48}} textColor="#f57f17"
-              compact>
-              {''}
-            </Button>
+
+          {/* Fila 2: documentos cliente */}
+          <View style={[s.accionGrid,{marginTop:8}]}>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(21,101,192,0.15)'}]} onPress={imprimirDUI} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="card-account-details" size={24} color="#42a5f5"/>
+              <Text style={[s.accionLbl,{color:'#42a5f5'}]}>DUI</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(245,127,23,0.15)'}]} onPress={imprimirRecibo} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="lightning-bolt" size={24} color="#ffa726"/>
+              <Text style={[s.accionLbl,{color:'#ffa726'}]}>Recibo Luz</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(245,127,23,0.10)'}]} onPress={agregarReciboLuz} disabled={subiendoRecibo}>
+              <MaterialCommunityIcons name={prestamo.cliente?.recibo_luz_url ? 'camera-retake' : 'camera-plus'} size={24} color="#ffa726"/>
+              <Text style={[s.accionLbl,{color:'#ffa726'}]}>📷 Luz</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(123,31,162,0.15)'}]} onPress={generarPagare} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="file-document-edit-outline" size={24} color="#ce93d8"/>
+              <Text style={[s.accionLbl,{color:'#ce93d8'}]}>Pagaré</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Cancelación */}
           {(prestamo.estado === 'completado' || saldoPendiente <= 0) && (
-            <Button mode="contained" icon="check-circle" onPress={imprimirCancelado} loading={pdfLoading}
-              style={{backgroundColor:'#c62828',borderRadius:8}} textColor="#fff">
-              🏆 Imprimir Recibo de Cancelación
-            </Button>
+            <TouchableOpacity style={[s.accionBtnWide,{backgroundColor:'rgba(198,40,40,0.2)',marginTop:8}]}
+              onPress={imprimirCancelado} disabled={pdfLoading}>
+              <MaterialCommunityIcons name="check-circle" size={20} color="#ef5350"/>
+              <Text style={[s.accionLblWide,{color:'#ef5350'}]}>🏆 Imprimir Recibo de Cancelación</Text>
+            </TouchableOpacity>
           )}
-          <Button mode="outlined" icon="file-document-edit-outline" onPress={generarPagare}
-            loading={pdfLoading}
-            style={{borderColor:'#7b1fa2',borderRadius:8}} textColor="#7b1fa2">
-            Pagaré Sin Protesto
-          </Button>
-          {isSupervisor && (
-            <View style={{flexDirection:'row',gap:8}}>
-              <Button mode="outlined" icon="pencil" onPress={abrirEditar}
-                style={{flex:1,borderColor:C.primaryText,borderRadius:8}} textColor={C.primaryText}>
-                Editar préstamo
-              </Button>
-              {isAdmin && (
-                <Button mode="outlined" icon="delete" onPress={()=>{ setDeleteError(''); setModalBorrar(true); }}
-                  style={{borderColor:'#ef5350',borderRadius:8}} textColor="#ef5350">
-                  Borrar
-                </Button>
-              )}
-            </View>
-          )}
+
+          {/* Editar / Borrar préstamo */}
+          <View style={[s.accionGrid,{marginTop:8}]}>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:C.isDark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'}]} onPress={abrirEditar}>
+              <MaterialCommunityIcons name="pencil" size={24} color={C.textSec}/>
+              <Text style={[s.accionLbl,{color:C.textSec}]}>Editar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(198,40,40,0.12)'}]}
+              onPress={()=>{ setDeleteError(''); setModalBorrar(true); }}>
+              <MaterialCommunityIcons name="delete-outline" size={24} color="#ef5350"/>
+              <Text style={[s.accionLbl,{color:'#ef5350'}]}>Borrar</Text>
+            </TouchableOpacity>
+            <View style={s.accionBtn}/>
+            <View style={s.accionBtn}/>
+          </View>
+
+          {pdfLoading && <ActivityIndicator size="small" color={C.primary} style={{marginTop:8}}/>}
         </Card.Content>
       </Card>
 
@@ -592,13 +597,11 @@ export default function DetallePrestamo() {
               {c.pagada
                 ? <View style={{alignItems:'center',gap:4}}>
                     <Text style={s.checkIcon}>✅</Text>
-                    {isSupervisor && (
-                      <TouchableOpacity
-                        style={s.borrarPagoBtn}
-                        onPress={() => borrarPagoCuota(c.numero)}>
-                        <Text style={s.borrarPagoTxt}>🗑️ Borrar</Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      style={s.borrarPagoBtn}
+                      onPress={() => borrarPagoCuota(c.numero)}>
+                      <Text style={s.borrarPagoTxt}>🗑️ Borrar</Text>
+                    </TouchableOpacity>
                   </View>
                 : <View style={{alignItems:'center',gap:4}}>
                     <TouchableOpacity
@@ -606,7 +609,7 @@ export default function DetallePrestamo() {
                       onPress={() => abrirPago(c)}>
                       <Text style={s.pagarTxt}>{esAbono ? '💰 Abonar' : c.atrasada ? '⚠️ Abonar' : 'Cobrar'}</Text>
                     </TouchableOpacity>
-                    {isSupervisor && esAbono && (
+                    {esAbono && (
                       <TouchableOpacity
                         style={s.borrarPagoBtn}
                         onPress={() => borrarPagoCuota(c.numero)}>
@@ -1005,4 +1008,12 @@ const makeStyles = (C: any) => StyleSheet.create({
   previewVal:     {fontSize:16, fontWeight:'800', color:C.primaryText},
   errorBox:       {backgroundColor:C.surfaceAlt, borderRadius:8, padding:10, marginTop:6, borderLeftWidth:3, borderLeftColor:C.danger},
   errorTxt:       {color:C.danger, fontSize:13},
+  // Botones de acción — cuadrícula
+  accionGrid:     {flexDirection:'row', gap:8},
+  accionBtn:      {flex:1, alignItems:'center', justifyContent:'center', borderRadius:12,
+                   paddingVertical:12, paddingHorizontal:4, gap:4, minHeight:64},
+  accionLbl:      {fontSize:11, fontWeight:'700', textAlign:'center'},
+  accionBtnWide:  {flexDirection:'row', alignItems:'center', borderRadius:12,
+                   paddingVertical:12, paddingHorizontal:16, gap:8},
+  accionLblWide:  {fontSize:13, fontWeight:'700', flex:1},
 });

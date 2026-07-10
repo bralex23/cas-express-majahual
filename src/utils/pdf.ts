@@ -3,9 +3,9 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Asset } from 'expo-asset';
 import { Prestamo, CuotaCalendar, Cliente } from '../types';
-import { formatMoneda, formatFecha, calcularVencimiento } from './calculos';
+import { formatMoneda, formatFecha, calcularVencimiento, tablaAmortizacion, calcularCuotaAmort, TASA_ANUAL_BCR } from './calculos';
 
-const EMPRESA = 'CAS EXPRESS MAJAHUAL';
+const EMPRESA = 'SOLUCIONES FINANCIERAS CAS EXPRESS';
 const SLOGAN  = 'Créditos Legales · BCR';
 
 /* ── Utilidades internas ──────────────────────────────────────── */
@@ -494,103 +494,171 @@ export async function generarPDFPrestamo(prestamo: Prestamo, cal: CuotaCalendar[
    2. CONTRATO DE CRÉDITO NUEVO
    ══════════════════════════════════════════════════════════════ */
 export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) {
-  const c       = prestamo.cliente;
-  const hoyFmt  = formatFecha(new Date().toISOString().split('T')[0]);
-  const enLetras = numeroALetras(prestamo.monto);
-  const diasSemana: Record<string,string> = {
-    diario:'DIARIO', semanal:'SEMANAL', mensual:'MENSUAL'
-  };
+  const c          = prestamo.cliente;
+  const hoyFmt     = formatFecha(new Date().toISOString().split('T')[0]);
+  const enLetras   = numeroALetras(prestamo.monto);
+  const esSemanal  = prestamo.frecuencia === 'semanal';
+
+  // Etiquetas según modalidad
+  const periodoLabel   = esSemanal ? 'semanas' : 'días';
+  const cuotaLabel     = esSemanal ? 'semanal' : 'diaria';
+  const saldoLabel     = esSemanal ? 'semanal' : 'diario';
+  const colLabel       = esSemanal ? 'Sem.' : 'Día';
+  const diasTotales    = esSemanal ? prestamo.plazo * 7 : prestamo.plazo;
+
+  // Cálculos de amortización (método BCR legal)
+  const cuotaAmort     = calcularCuotaAmort(prestamo.monto, prestamo.plazo, prestamo.frecuencia);
+  const totalAPagar    = Math.round(cuotaAmort * prestamo.plazo * 100) / 100;
+  const totalIntereses = Math.round((totalAPagar - prestamo.monto) * 100) / 100;
+  const tabla          = tablaAmortizacion(prestamo.monto, prestamo.plazo, prestamo.frecuencia);
+
+  const tablaRows = tabla.map(r => `
+    <tr>
+      <td style="text-align:center;padding:2px 4px;border:1px solid #ddd">${r.numero}</td>
+      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd">$${r.saldo.toFixed(2)}</td>
+      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd">$${r.cuota.toFixed(2)}</td>
+      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd;color:#c62828">$${r.interes.toFixed(2)}</td>
+      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd;color:#2e7d32">$${r.abono.toFixed(2)}</td>
+    </tr>`).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     ${PAGE_RESET}
-    body{font-family:Arial,sans-serif;padding:28px 44px;font-size:13px;color:#111;max-width:760px;margin:0 auto}
-    .logo{text-align:center;margin-bottom:8px}
-    .subtit{text-align:center;font-size:16px;font-weight:bold;margin-bottom:22px;letter-spacing:1px}
-    .linea{width:100%;border-collapse:collapse;margin-bottom:14px}
-    .linea td{vertical-align:bottom;padding:0 6px 0 0}
-    .campo{border-bottom:1.5px solid #333;min-width:80px;height:20px;display:inline-block;font-size:13px;width:100%}
-    .lbl{font-size:12px;font-weight:bold;white-space:nowrap}
-    .parrafo{margin:24px 0;text-align:justify;line-height:2.0;font-size:13px}
-    .firma-sec{width:100%;border-collapse:collapse;margin-top:50px}
-    .firma-sec td{text-align:center;width:50%}
-    .firma-box{text-align:center}
-    .firma-linea{border-bottom:1px solid #333;width:220px;margin:0 auto 6px}
-    .seccion{margin-bottom:14px}
+    @page{size:letter;margin:8mm 12mm}
+    body{font-family:Arial,sans-serif;padding:10px 16px;font-size:10.5px;color:#111;max-width:760px;margin:0 auto}
+    .logo{text-align:center;margin-bottom:4px}
+    .subtit{text-align:center;font-size:13px;font-weight:bold;margin-bottom:8px;letter-spacing:1px;text-decoration:underline}
+    .info-header{background:#f0f4ff;border:1px solid #c0d0ff;border-radius:4px;padding:5px 10px;margin-bottom:8px}
+    .info-header td{padding:1px 6px 1px 0;font-size:10px;vertical-align:top}
+    .intro{text-align:justify;margin-bottom:6px;font-size:10px;line-height:1.5}
+    .clausula{margin:5px 0}
+    .clausula-titulo{font-weight:bold;font-size:10px;background:#0a2463;color:#fff;padding:3px 8px;margin-bottom:4px;letter-spacing:.5px}
+    .clausula-body{text-align:justify;line-height:1.5;padding:0 4px;font-size:10px}
+    .amort-table{width:100%;border-collapse:collapse;font-size:9.5px;margin-top:6px;page-break-inside:avoid}
+    .amort-table th{background:#0a2463;color:#fff;padding:3px;text-align:center;border:1px solid #0a2463}
+    .amort-table tbody tr:nth-child(even){background:#f5f5f5}
+    .total-row td{font-weight:bold;background:#e8f5e9;padding:3px 4px;border:1px solid #999;border-top:2px solid #333}
+    .firma-sec{width:100%;border-collapse:collapse;margin-top:16px}
+    .firma-sec td{text-align:center;width:50%;padding-top:4px}
   </style></head><body>
+
   <div class="logo">
-    <div style="font-size:20px;font-weight:900;color:#0a2463;letter-spacing:1px">${EMPRESA}</div>
-    <div style="font-size:12px;color:#888">${SLOGAN}</div>
+    <div style="font-size:17px;font-weight:900;color:#0a2463;letter-spacing:1px">${EMPRESA}</div>
+    <div style="font-size:10px;color:#888">${SLOGAN}</div>
   </div>
-  <div class="subtit">CREDITO NUEVO</div>
+  <div class="subtit">CONTRATO DE CRÉDITO</div>
 
-  <div class="seccion">
-    <table class="linea"><tr>
-      <td style="width:auto"><span class="lbl">FECHA DE SOLICITUD</span><br/><span class="campo">&nbsp;${hoyFmt}&nbsp;</span></td>
-      <td style="width:auto"><span class="lbl">MONTO:</span><br/><span class="campo">&nbsp;${formatMoneda(prestamo.monto)}&nbsp;</span></td>
-      <td style="width:auto"><span class="lbl">CICLO:</span><br/><span class="campo">&nbsp;${prestamo.numero_credito ?? ''}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td style="width:100%"><span class="lbl">Nº DE EXPEDIENTE:</span><br/><span class="campo">&nbsp;${fmtExp(c?.numero_expediente)}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td><span class="lbl">SUCURSAL:</span><br/><span class="campo">&nbsp;</span></td>
-      <td><span class="lbl">FORMA DE PAGO:</span><br/><span class="campo">&nbsp;${diasSemana[prestamo.frecuencia]||''}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td style="width:100%"><span class="lbl">NOMBRE:</span><br/><span class="campo">&nbsp;${c?.nombre||''}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td><span class="lbl">DUI:</span><br/><span class="campo">&nbsp;${c?.dui||''}&nbsp;</span></td>
-      <td><span class="lbl">TELÉFONO:</span><br/><span class="campo">&nbsp;${c?.telefono||''}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td style="width:100%"><span class="lbl">DOMICILIO:</span><br/><span class="campo">&nbsp;${c?.direccion||''}&nbsp;</span></td>
-    </tr></table>
+  <!-- Encabezado datos -->
+  <div class="info-header">
+    <table style="width:100%;border-collapse:collapse">
+      <tr>
+        <td><b>Fecha:</b> ${hoyFmt}</td>
+        <td><b>Expediente Nº:</b> ${fmtExp(c?.numero_expediente)}</td>
+        <td><b>Ciclo:</b> ${prestamo.numero_credito ?? ''}</td>
+      </tr>
+      <tr>
+        <td colspan="2"><b>Deudor:</b> ${c?.nombre||''}</td>
+        <td><b>DUI:</b> ${c?.dui||''}</td>
+      </tr>
+      <tr>
+        <td colspan="2"><b>Domicilio:</b> ${c?.direccion||''}</td>
+        <td><b>Email:</b> ${c?.email||'—'}</td>
+      </tr>
+      <tr>
+        <td><b>Teléfono:</b> ${c?.telefono||''}</td>
+        <td><b>Entregó:</b> ${(cobrador||'').toUpperCase()}</td>
+        <td><b>Desembolso:</b> ${formatFecha(prestamo.fecha_inicio)}</td>
+      </tr>
+    </table>
   </div>
 
-  <table class="linea" style="margin-top:20px"><tr>
-    <td style="width:100%"><span class="lbl">FIRMA:</span><br/><span class="campo">&nbsp;</span></td>
+  <div class="intro">
+    En el distrito de Tamanique, La Libertad Costa, El Salvador, a ${hoyFmt},
+    comparecen: <b>${EMPRESA}</b> como ACREEDOR, y
+    <b>${c?.nombre||'_________________________'}</b>, DUI <b>${c?.dui||'__________'}</b>,
+    como DEUDOR, quienes celebran el presente CONTRATO DE CRÉDITO bajo las siguientes cláusulas:
+  </div>
+
+  <!-- PRIMERA -->
+  <div class="clausula">
+    <div class="clausula-titulo">PRIMERA — MONTO</div>
+    <div class="clausula-body">
+      El ACREEDOR otorga al DEUDOR un crédito en efectivo por la suma de
+      <b>${enLetras} (${formatMoneda(prestamo.monto)} USD)</b>,
+      cantidad que el DEUDOR declara haber recibido a su entera satisfacción al momento de la firma del presente contrato.
+    </div>
+  </div>
+
+  <!-- SEGUNDA -->
+  <div class="clausula">
+    <div class="clausula-titulo">SEGUNDA — PLAZO Y FORMA DE PAGO</div>
+    <div class="clausula-body">
+      El DEUDOR se compromete a cancelar la deuda en un plazo de <b>${prestamo.plazo} ${periodoLabel}</b>
+      (${diasTotales} días calendario), mediante <b>${prestamo.plazo} cuotas fijas ${cuotaLabel}s</b> de
+      <b>${formatMoneda(cuotaAmort)} USD</b> cada una. Primera cuota:
+      <b>${formatFecha(calcularVencimiento(prestamo.fecha_inicio, 1, prestamo.frecuencia))}</b>.
+      Última cuota: <b>${formatFecha(prestamo.fecha_fin)}</b>.
+      El incumplimiento faculta al ACREEDOR a exigir el saldo total de forma inmediata.
+    </div>
+  </div>
+
+  <!-- TERCERA -->
+  <div class="clausula">
+    <div class="clausula-titulo">TERCERA — INTERESES</div>
+    <div class="clausula-body">
+      Tasa de interés: <b>${TASA_ANUAL_BCR}% anual</b> (Tasa Máxima Legal BCR, Seg. 3 — crédito consumo,
+      vigente Jul–Dic 2026). Calculada sobre el <b>saldo ${saldoLabel} pendiente</b> por amortización gradual.
+      Total a pagar: <b>${formatMoneda(totalAPagar)} USD</b>
+      (capital <b>${formatMoneda(prestamo.monto)}</b> + intereses <b>${formatMoneda(totalIntereses)}</b>).
+    </div>
+  </div>
+
+  <!-- CUARTA -->
+  <div class="clausula">
+    <div class="clausula-titulo">CUARTA — TRANSPARENCIA</div>
+    <div class="clausula-body">
+      El DEUDOR recibe la <b>Tabla de Amortización</b> a continuación, detallando por cuota el saldo inicial,
+      interés y abono a capital, según normativa del Banco Central de Reserva de El Salvador.
+    </div>
+  </div>
+
+  <!-- Tabla de amortización -->
+  <table class="amort-table">
+    <thead>
+      <tr>
+        <th>${colLabel}</th>
+        <th>Saldo Inicial</th>
+        <th>Cuota</th>
+        <th>Interés</th>
+        <th>Abono Capital</th>
+      </tr>
+    </thead>
+    <tbody>${tablaRows}</tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2" style="text-align:center">TOTALES</td>
+        <td style="text-align:right">$${totalAPagar.toFixed(2)}</td>
+        <td style="text-align:right;color:#c62828">$${totalIntereses.toFixed(2)}</td>
+        <td style="text-align:right;color:#2e7d32">$${prestamo.monto.toFixed(2)}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- Firmas -->
+  <table class="firma-sec"><tr>
+    <td>
+      <div style="border-top:1.5px solid #333;width:200px;margin:0 auto 4px"></div>
+      <div style="font-weight:bold;font-size:11px">${EMPRESA}</div>
+      <div style="font-size:10px">ACREEDOR — ${(cobrador||'').toUpperCase()}</div>
+    </td>
+    <td>
+      <div style="border-top:1.5px solid #333;width:200px;margin:0 auto 4px"></div>
+      <div style="font-weight:bold;font-size:11px">${c?.nombre||''}</div>
+      <div style="font-size:10px">DEUDOR — DUI: ${c?.dui||''}</div>
+    </td>
   </tr></table>
 
-  <div class="parrafo">
-    YO(CLIENTE),&nbsp;<span style="border-bottom:1px solid #333;padding:0 90px">&nbsp;${c?.nombre||''}&nbsp;</span>&nbsp;
-    ME CONSTITUYO DEUDOR(A) DE LA INSTITUCIÓN ${EMPRESA}, POR UN CRÉDITO APROBADO ESTE DÍA DE LA CANTIDAD DE
-    $&nbsp;<b>${prestamo.monto.toFixed(2)}</b>&nbsp;${enLetras}, PARA UN PLAZO DE
-    &nbsp;<span style="border-bottom:1px solid #333;padding:0 24px">&nbsp;${prestamo.plazo}&nbsp;</span>&nbsp;
-    EN EL CUAL ME OBLIGO A PAGAR EN EL TIEMPO Y FORMA ESTABLECIDO.
-    TAMBIÉN HAGO CONSTAR QUE ME COMPROMETO A PAGAR LA MORA ESTABLECIDA EN CASO DE INCUMPLIMIENTO CON LA FECHA ACORDADA.
-  </div>
-
-  <div class="seccion">
-    <table class="linea"><tr>
-      <td><span class="lbl">MONTO REFINANCIADO:</span><br/><span class="campo">&nbsp;</span></td>
-      <td><span class="lbl">FECHA DE DESEMBOLSO:</span><br/><span class="campo">&nbsp;${formatFecha(prestamo.fecha_inicio)}&nbsp;</span></td>
-    </tr></table>
-    <table class="linea"><tr>
-      <td style="width:70%"><span class="lbl">PERSONA QUE ENTREGA:</span><br/><span class="campo">&nbsp;${(cobrador||'').toUpperCase()}&nbsp;</span></td>
-      <td><span class="lbl">F:</span><br/><span class="campo">&nbsp;</span></td>
-    </tr></table>
-  </div>
-
-  <!-- Observaciones -->
-  <div style="margin-top:18px">
-    <div style="font-size:12px;font-weight:bold;margin-bottom:6px">OBSERVACIONES:</div>
-    <div style="border:1px solid #ccc;min-height:60px;border-radius:4px;padding:6px">&nbsp;</div>
-  </div>
-
-  <table class="firma-sec" style="margin-top:40px"><tr>
-    <td class="firma-box">
-      <div style="font-size:13px">F.________________________________</div>
-      <div style="font-size:12px;margin-top:6px">FIRMA DE RECIBIDO (CLIENTE)</div>
-    </td>
-    <td class="firma-box">
-      <div style="font-size:13px">F.________________________________</div>
-      <div style="font-size:12px;margin-top:6px">FIRMA DEL EJECUTIVO</div>
-    </td>
-  </tr></table>
-
-  <div style="margin-top:24px;text-align:center;font-size:10px;color:#aaa;border-top:1px solid #eee;padding-top:8px">
-    ${EMPRESA} · Documento generado el ${hoyFmt}
+  <div style="margin-top:10px;text-align:center;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:4px">
+    ${EMPRESA} · Contrato generado el ${hoyFmt} · Tasa BCR ${TASA_ANUAL_BCR}% anual
   </div></body></html>`;
   return imprimir(html);
 }
@@ -1636,9 +1704,9 @@ export async function generarPDFFicha(prestamos: Prestamo[]) {
     return `
       <div class="ficha">
         <div class="hdr" style="padding-bottom:${hdrPb};margin-bottom:${hdrMb}">
-          <div class="empresa">CAS Express Majahual</div>
+          <div class="empresa">Soluciones Financieras CAS Express</div>
           <div class="logo-box">
-            <div class="logo-sup">CAS EXPRESS MAJAHUAL</div>
+            <div class="logo-sup">SOLUCIONES FINANCIERAS CAS EXPRESS</div>
             <div class="logo-nom">CAS Express</div>
             <div class="logo-sub">CRÉDITOS LEGALES BCR</div>
           </div>

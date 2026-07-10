@@ -16,11 +16,11 @@ set PATH=%NODE_DIR%;%PATH%
 
 REM ── Iniciar Expo ──────────────────────────────────────────────────
 set BROWSER=none
-start "CAS Express - Servidor" /min cmd /c ""%NODE_DIR%npx.cmd" expo start --web --port 8082 2>&1"
+start "CAS Express - Servidor" /min cmd /c ""%NODE_DIR%npx.cmd" expo start --web --port 8083 2>&1"
 
 timeout /t 5 /nobreak > nul
 
 REM ── Abrir en Brave ────────────────────────────────────────────────
-start "" "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" "http://localhost:8082"
+start "" "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe" "http://localhost:8083"
 
 exit

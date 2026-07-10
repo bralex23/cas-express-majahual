@@ -6,7 +6,7 @@ const path = require('path');
 const http  = require('http');
 
 const isDev   = !app.isPackaged;
-const EXPO_URL = 'http://localhost:8082';
+const EXPO_URL = 'http://localhost:8083';
 
 /** Espera hasta que Expo responda (sin límite de tiempo) */
 function waitForExpo(win) {

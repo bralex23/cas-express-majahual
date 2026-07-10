@@ -38,6 +38,8 @@ export default function NuevoCliente() {
   const [reciboLuzUri, setReciboLuz] = useState<string | null>(null);
   const [loading, setLoading]        = useState(false);
   const [error, setError]       = useState('');
+  const [edad, setEdad] = useState('');
+
   // Referencias personales
   const [ref1Nombre,     setRef1Nombre]     = useState('');
   const [ref1Telefono,   setRef1Telefono]   = useState('');
@@ -62,7 +64,7 @@ export default function NuevoCliente() {
         const d = snap.data();
         setNombre(d.nombre||''); setDui(d.dui||''); setTelefono(d.telefono||'');
         setDir(d.direccion||''); setMaps(d.maps_url||''); setGeo(d.geo_codigo||''); setNotas(d.notas||'');
-        setExpediente(d.numero_expediente||''); setRutaId(d.ruta_id||'');
+        setExpediente(d.numero_expediente||''); setRutaId(d.ruta_id||''); setEdad(d.edad||'');
         setFoto(d.foto_url || null); setDuiR(d.dui_reverso_url || null);
         setReciboLuz(d.recibo_luz_url || null);
         setRef1Nombre(d.ref1_nombre||''); setRef1Telefono(d.ref1_telefono||''); setRef1Parentesco(d.ref1_parentesco||'');
@@ -72,6 +74,7 @@ export default function NuevoCliente() {
       // Nuevo cliente: limpiar todos los campos
       setNombre(''); setDui(''); setTelefono(''); setDir('');
       setMaps(''); setGeo(''); setNotas(''); setFoto(null); setDuiR(null); setReciboLuz(null);
+      setEdad('');
       setRef1Nombre(''); setRef1Telefono(''); setRef1Parentesco('');
       setRef2Nombre(''); setRef2Telefono(''); setRef2Parentesco('');
       setRutaId(perfil?.ruta_id || ''); setError('');
@@ -181,6 +184,7 @@ export default function NuevoCliente() {
 
       const data: Record<string, any> = {
         nombre: nombre.trim(), dui: dui.trim(), telefono: telefono.trim(),
+        edad: edad.trim() || null,
         direccion: direccion.trim(), maps_url: mapsUrl.trim(),
         geo_codigo: geoCodigo.trim(), notas: notas.trim(),
         numero_expediente: expediente.trim() || null,
@@ -279,6 +283,10 @@ export default function NuevoCliente() {
           placeholder="00000000-0" right={dui.length===10 ? <TextInput.Icon icon="check-circle" color="#2e7d32"/> : undefined}/>
         <TextInput label="Teléfono" value={telefono} onChangeText={setTelefono}
           mode="outlined" style={s.input} keyboardType="phone-pad" />
+        <TextInput label="Edad" value={edad} onChangeText={setEdad}
+          mode="outlined" style={s.input} keyboardType="numeric"
+          left={<TextInput.Icon icon="cake-variant-outline"/>}
+          placeholder="Ej: 35" maxLength={3}/>
         <TextInput label="Dirección" value={direccion} onChangeText={setDir}
           mode="outlined" style={s.input} multiline />
         <TextInput label="Link de Google Maps (opcional)" value={mapsUrl} onChangeText={setMaps}

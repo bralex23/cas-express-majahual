@@ -16,7 +16,7 @@ set PATH=%NODE_DIR%;%PATH%
 
 REM ── Iniciar Expo (--reset-cache limpia bundle desactualizado) ─────
 set BROWSER=none
-start "Expo-CAS" /min cmd /c ""%NODE_DIR%npx.cmd" expo start --web --port 8082 --reset-cache 2>&1"
+start "Expo-CAS" /min cmd /c ""%NODE_DIR%npx.cmd" expo start --web --port 8083 --reset-cache 2>&1"
 
 REM ── Esperar a que Expo esté listo ────────────────────────────────
 timeout /t 8 /nobreak > nul
