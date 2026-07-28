@@ -104,6 +104,12 @@ export default function DetalleCliente() {
   const [modalEmail, setModalEmail]         = useState(false);
   const [dEmail, setDEmail]                 = useState('');
   const [emailGuardando, setEmailGuardando] = useState(false);
+  /* Datos para Pagaré */
+  const [modalPagare, setModalPagare]       = useState(false);
+  const [pProfesion, setPProfesion]         = useState('');
+  const [pEdad, setPEdad]                   = useState('');
+  const [pNit, setPNit]                     = useState('');
+  const [pagareGuardando, setPagareGuardando] = useState(false);
   /* PDF loading */
   const [pdfLoading, setPdfLoading]         = useState(false);
 
@@ -163,6 +169,27 @@ export default function DetalleCliente() {
     if (!window.confirm('¿Eliminar esta garantía?')) return;
     await deleteDoc(doc(db, col('clientes'), id, 'garantias', gId));
     setGarantias(prev => prev.filter(g => g.id !== gId));
+  }
+
+  /* ── Abrir modal pagaré ── */
+  function abrirPagare() {
+    if (!cliente) return;
+    setPProfesion(cliente.profesion || '');
+    setPEdad(cliente.edad || '');
+    setPNit(cliente.nit || '');
+    setModalPagare(true);
+  }
+
+  /* ── Guardar datos pagaré ── */
+  async function guardarPagare() {
+    setPagareGuardando(true);
+    try {
+      const upd = { profesion: pProfesion.trim()||null, edad: pEdad.trim()||null, nit: pNit.trim()||null };
+      await updateDoc(doc(db, col('clientes'), id), upd);
+      setCliente(prev => prev ? { ...prev, ...upd } : prev);
+      setModalPagare(false);
+    } catch(e:any) { Alert.alert('Error', e?.message||'No se pudo guardar.'); }
+    setPagareGuardando(false);
   }
 
   /* ── Abrir modal correo ── */
@@ -236,6 +263,11 @@ export default function DetalleCliente() {
                 <Text style={s.link}>📞 {cliente.telefono}</Text>
               </TouchableOpacity>
             )}
+            {cliente.email && (
+              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${cliente.email}`)}>
+                <Text style={s.link}>✉️ {cliente.email}</Text>
+              </TouchableOpacity>
+            )}
             {cliente.maps_url && (
               <TouchableOpacity onPress={() => Linking.openURL(cliente.maps_url!)}>
                 <Text style={s.link}>📍 Ver en Google Maps</Text>
@@ -268,6 +300,42 @@ export default function DetalleCliente() {
           </Card.Content>
         </Card>
       )}
+
+      {/* ══ DATOS PARA PAGARÉ ══ */}
+      <Card style={[s.card, { marginTop: 10 }]}>
+        <Card.Content>
+          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+            <Text style={s.secTitulo}>📄 Datos para Pagaré</Text>
+            <TouchableOpacity
+              style={{ flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:10, paddingVertical:5,
+                borderRadius:8, backgroundColor:C.primary }}
+              onPress={abrirPagare}>
+              <MaterialCommunityIcons name="pencil" size={14} color="#fff"/>
+              <Text style={{ fontSize:12, fontWeight:'700', color:'#fff' }}>Editar</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:12 }}>
+            <View style={{ flex:1, minWidth:120 }}>
+              <Text style={s.secLabel}>Profesión / Oficio</Text>
+              <Text style={{ fontSize:13, color: cliente.profesion ? C.text : C.textTer }}>
+                {cliente.profesion || '—'}
+              </Text>
+            </View>
+            <View style={{ flex:1, minWidth:80 }}>
+              <Text style={s.secLabel}>Edad</Text>
+              <Text style={{ fontSize:13, color: cliente.edad ? C.text : C.textTer }}>
+                {cliente.edad ? `${cliente.edad} años` : '—'}
+              </Text>
+            </View>
+            <View style={{ flex:1, minWidth:120 }}>
+              <Text style={s.secLabel}>NIT</Text>
+              <Text style={{ fontSize:13, color: cliente.nit ? C.text : C.textTer }}>
+                {cliente.nit || '—'}
+              </Text>
+            </View>
+          </View>
+        </Card.Content>
+      </Card>
 
       {/* ══ GARANTÍAS ══ */}
       <Card style={[s.card, { marginTop: 10 }]}>
@@ -508,6 +576,36 @@ export default function DetalleCliente() {
             Toca para cerrar
           </Text>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Modal datos pagaré */}
+      <Modal visible={modalPagare} transparent animationType="slide" onRequestClose={() => setModalPagare(false)}>
+        <View style={s.overlay}>
+          <View style={s.modalBox}>
+            <Text style={[s.modalTit, { color: C.primaryText }]}>📄 Datos para Pagaré</Text>
+
+            <TextInput label="Profesión / Oficio" value={pProfesion} onChangeText={setPProfesion}
+              mode="outlined" style={{ marginBottom: 10 }}
+              left={<TextInput.Icon icon="briefcase-outline"/>}/>
+            <TextInput label="Edad" value={pEdad} onChangeText={setPEdad}
+              mode="outlined" keyboardType="numeric" maxLength={3}
+              style={{ marginBottom: 10 }}
+              left={<TextInput.Icon icon="cake-variant-outline"/>}/>
+            <TextInput label="NIT (opcional)" value={pNit} onChangeText={setPNit}
+              mode="outlined" style={{ marginBottom: 16 }}
+              left={<TextInput.Icon icon="identifier"/>}/>
+
+            <View style={s.modalBtns}>
+              <Button mode="outlined" onPress={() => setModalPagare(false)} style={{ flex:1 }}>
+                Cancelar
+              </Button>
+              <Button mode="contained" onPress={guardarPagare} loading={pagareGuardando}
+                style={{ flex:1 }} buttonColor={C.primary}>
+                Guardar
+              </Button>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Modal agregar garantía */}

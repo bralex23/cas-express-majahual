@@ -1218,6 +1218,543 @@ ipcMain.handle('generate-planilla', async (_event, datos) => {
   }
 });
 
+/* ══════════════════════════════════════════════════════════════
+   DTE — FACTURACIÓN ELECTRÓNICA HACIENDA EL SALVADOR
+   ══════════════════════════════════════════════════════════════ */
+
+/** Número a letras para totalLetras del DTE */
+function _dtLetras(n) {
+  const u = ['','UN','DOS','TRES','CUATRO','CINCO','SEIS','SIETE','OCHO','NUEVE',
+              'DIEZ','ONCE','DOCE','TRECE','CATORCE','QUINCE','DIECISÉIS',
+              'DIECISIETE','DIECIOCHO','DIECINUEVE'];
+  const d = ['','','VEINTE','TREINTA','CUARENTA','CINCUENTA','SESENTA','SETENTA','OCHENTA','NOVENTA'];
+  const c = ['','CIENTO','DOSCIENTOS','TRESCIENTOS','CUATROCIENTOS','QUINIENTOS',
+              'SEISCIENTOS','SETECIENTOS','OCHOCIENTOS','NOVECIENTOS'];
+  const int = Math.floor(n);
+  const dec = Math.round((n - int) * 100);
+  function grupo(x) {
+    if (x === 0) return '';
+    if (x === 100) return 'CIEN';
+    const h = Math.floor(x/100), r = x%100;
+    const ci = h ? c[h] + (r?' ':'') : '';
+    if (r === 0) return ci;
+    if (r < 20) return ci + u[r];
+    const di = Math.floor(r/10), uni = r%10;
+    return ci + d[di] + (uni?' Y '+u[uni]:'');
+  }
+  const miles = Math.floor(int/1000), resto = int%1000;
+  let txt = '';
+  if (miles > 0) txt += (miles===1?'MIL ':grupo(miles)+' MIL ');
+  txt += grupo(resto);
+  txt += dec > 0 ? ` CON ${String(dec).padStart(2,'0')}/100` : ' CON 00/100';
+  return txt + ' DÓLARES';
+}
+
+/** Construye el JSON FCF (Factura Consumidor Final tipo "01") según esquema MH */
+function _construirFCF(config, datos) {
+  // Fecha/hora en zona El Salvador (UTC-6)
+  const ahora = new Date();
+  const svFmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/El_Salvador',
+    year:'numeric', month:'2-digit', day:'2-digit',
+  }).format(ahora);
+  const svHora = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/El_Salvador',
+    hour:'2-digit', minute:'2-digit', second:'2-digit',
+    hour12: false,
+  }).format(ahora).replace(',','');
+
+  const codigoGeneracion = require('crypto').randomUUID().toUpperCase();
+  const correlativo = config.correlativo || 1;
+  const estab = (config.establecimiento || 'M001P001').toUpperCase();
+  const numeroControl = `DTE-01-${estab}-${String(correlativo).padStart(15,'0')}`;
+
+  // Limpiar documento receptor
+  const duiClean = (datos.cliente.dui || '').replace(/[^0-9]/g,'').slice(0,9);
+  const nitClean = (datos.cliente.nit || '').replace(/[^0-9]/g,'').slice(0,14);
+  const tipoDoc  = nitClean ? '36' : (duiClean ? '13' : null);
+  const numDoc   = nitClean || duiClean || null;
+
+  // Ítems del cuerpo (servicios financieros — EXENTOS de IVA, Art.46 LIVA)
+  const items = [];
+  const distribucion = datos.distribuciones || [];
+
+  if (distribucion.length > 0) {
+    distribucion.forEach((dist, idx) => {
+      const monto = Math.round(dist.monto * 100) / 100;
+      items.push({
+        numItem: idx + 1,
+        tipoItem: 2,
+        numeroDocumento: null,
+        codigo: null,
+        codTributo: null,
+        descripcion: `Servicio financiero — Cuota #${dist.numero} (préstamo ${datos.prestamo.frecuencia})`,
+        cantidad: 1,
+        uniMedida: 99,
+        precioUni: monto,
+        montoDescu: 0,
+        ventaNoSuj: 0,
+        ventaExenta: monto,
+        ventaGravada: 0,
+        tributos: null,
+        psv: 0,
+        noGravado: 0,
+        ivaItem: 0,
+      });
+    });
+  } else {
+    const numC = Array.isArray(datos.numeroCuota) ? datos.numeroCuota[0] : datos.numeroCuota;
+    const monto = Math.round(datos.monto * 100) / 100;
+    items.push({
+      numItem: 1,
+      tipoItem: 2,
+      numeroDocumento: null,
+      codigo: null,
+      codTributo: null,
+      descripcion: `Servicio financiero — Cuota #${numC} (préstamo ${datos.prestamo.frecuencia})`,
+      cantidad: 1,
+      uniMedida: 99,
+      precioUni: monto,
+      montoDescu: 0,
+      ventaNoSuj: 0,
+      ventaExenta: monto,
+      ventaGravada: 0,
+      tributos: null,
+      psv: 0,
+      noGravado: 0,
+      ivaItem: 0,
+    });
+  }
+
+  if (datos.mora && datos.mora > 0) {
+    const mora = Math.round(datos.mora * 100) / 100;
+    items.push({
+      numItem: items.length + 1,
+      tipoItem: 2,
+      numeroDocumento: null,
+      codigo: null,
+      codTributo: null,
+      descripcion: 'Cargo por mora',
+      cantidad: 1,
+      uniMedida: 99,
+      precioUni: mora,
+      montoDescu: 0,
+      ventaNoSuj: 0,
+      ventaExenta: mora,
+      ventaGravada: 0,
+      tributos: null,
+      psv: 0,
+      noGravado: 0,
+      ivaItem: 0,
+    });
+  }
+
+  const totalExenta = Math.round(items.reduce((s,i)=>s+i.ventaExenta,0)*100)/100;
+
+  return {
+    identificacion: {
+      version: 1,
+      ambiente: config.ambiente || '01',
+      tipoDte: '01',
+      numeroControl,
+      codigoGeneracion,
+      tipoModelo: 1,
+      tipoOperacion: 1,
+      tipoContingencia: null,
+      motivoContigencia: null,
+      fecEmi: svFmt,
+      horEmi: svHora,
+      tipoMoneda: 'USD',
+    },
+    documentoRelacionado: null,
+    emisor: {
+      nit: config.nit,
+      nrc: config.nrc,
+      nombre: config.nombre || 'SOLUCIONES FINANCIERAS CAS EXPRESS',
+      codActividad: config.codActividad || '6492',
+      descActividad: config.descActividad || 'Otras actividades de concesión de crédito',
+      nombreComercial: config.nombreComercial || 'CAS EXPRESS',
+      tipoEstablecimiento: config.tipoEstablecimiento || '02',
+      direccion: {
+        departamento: config.departamento || '06',
+        municipio:    config.municipio    || '22',
+        complemento:  config.complemento  || 'Distrito de Tamanique, La Libertad Costa, El Salvador',
+      },
+      telefono: config.telefono || '',
+      correo:   config.correoEmisor || '',
+    },
+    receptor: {
+      tipoDocumento: tipoDoc,
+      numDocumento:  numDoc,
+      nombre:        datos.cliente.nombre.toUpperCase(),
+      codActividad:  null,
+      descActividad: null,
+      direccion:     null,
+      telefono:      datos.cliente.telefono || null,
+      correo:        datos.cliente.correo   || null,
+    },
+    otrosDocumentos: null,
+    ventaTercero:    null,
+    cuerpoDocumento: items,
+    resumen: {
+      totalNoSuj:           0,
+      totalExenta,
+      totalGravada:         0,
+      subTotalVentas:       totalExenta,
+      descuNoSuj:           0,
+      descuExenta:          0,
+      descuGravada:         0,
+      porcentajeDescuento:  0,
+      totalDescu:           0,
+      tributos:             null,
+      subTotal:             totalExenta,
+      ivaRete1:             0,
+      reteRenta:            0,
+      montoTotalOperacion:  totalExenta,
+      totalNoGravado:       0,
+      totalPagar:           totalExenta,
+      totalLetras:          _dtLetras(totalExenta),
+      totalIva:             0,
+      saldoFavor:           0,
+      condicionOperacion:   1,
+      pagos: [{
+        codigo:     '01',
+        montoPago:  totalExenta,
+        referencia: null,
+        plazo:      null,
+        periodo:    null,
+      }],
+      numPagoElectronico: null,
+    },
+    extension: null,
+    apendice:  null,
+  };
+}
+
+/** POST JSON a una URL HTTPS — devuelve { status, body } */
+function _httpsPost(url, body, extraHeaders = {}) {
+  return new Promise((resolve, reject) => {
+    const https2  = require('https');
+    const bodyStr = JSON.stringify(body);
+    const parsed  = new URL(url);
+    const opts = {
+      hostname: parsed.hostname,
+      port:     443,
+      path:     parsed.pathname + (parsed.search || ''),
+      method:   'POST',
+      headers: {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr),
+        ...extraHeaders,
+      },
+    };
+    const req = https2.request(opts, res => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try   { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+        catch { resolve({ status: res.statusCode, body: data }); }
+      });
+    });
+    req.on('error', reject);
+    req.write(bodyStr);
+    req.end();
+  });
+}
+
+/** HTML del email comprobante (con o sin sello MH) */
+function _htmlEmail(datos, dteJson, sello) {
+  const fmtM  = n => `$${Number(n).toFixed(2)}`;
+  const fecha = new Date().toLocaleDateString('es-SV', { timeZone:'America/El_Salvador', dateStyle:'long' });
+  const numCtrl = dteJson?.identificacion?.numeroControl || '—';
+  const codGen  = dteJson?.identificacion?.codigoGeneracion || '—';
+  const cuotaLabel = datos.distribuciones && datos.distribuciones.length > 1
+    ? datos.distribuciones.map(d=>`#${d.numero}`).join(', ')
+    : `#${Array.isArray(datos.numeroCuota)?datos.numeroCuota[0]:datos.numeroCuota}`;
+  const total = datos.monto + (datos.mora || 0);
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;background:#f2f4f8;margin:0;padding:24px}
+  .wrap{max-width:580px;margin:0 auto}
+  .card{background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+  .head{background:#0a2463;padding:24px 28px;text-align:center}
+  .head h1{color:#fff;font-size:20px;margin:0 0 4px}
+  .head p{color:#aac4ff;font-size:12px;margin:0}
+  .body{padding:24px 28px}
+  .badge{background:#e8f5e9;color:#2e7d32;border-radius:20px;padding:6px 18px;font-size:13px;font-weight:700;display:inline-block;margin-bottom:20px}
+  .total-box{background:#0a2463;border-radius:8px;padding:18px;text-align:center;margin:18px 0}
+  .total-label{color:#aac4ff;font-size:11px;letter-spacing:1px}
+  .total-num{color:#fff;font-size:32px;font-weight:900;margin:4px 0}
+  .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px}
+  .row:last-child{border-bottom:none}
+  .lbl{color:#888}
+  .code{background:#f5f5f5;border-radius:4px;padding:8px 10px;font-family:monospace;font-size:11px;color:#555;word-break:break-all;margin:6px 0}
+  .nota{background:#fff8e1;border-left:4px solid #f9a825;padding:10px 14px;font-size:12px;color:#666;margin-top:16px;border-radius:0 4px 4px 0}
+  .foot{text-align:center;font-size:11px;color:#aaa;margin-top:16px}
+</style></head><body><div class="wrap">
+<div class="card">
+  <div class="head">
+    <h1>SOLUCIONES FINANCIERAS CAS EXPRESS</h1>
+    <p>Factura Electrónica de Consumidor Final</p>
+  </div>
+  <div class="body">
+    <div style="text-align:center"><span class="badge">✅ Pago registrado — Factura emitida</span></div>
+
+    <div class="total-box">
+      <div class="total-label">TOTAL PAGADO</div>
+      <div class="total-num">${fmtM(total)}</div>
+      <div style="color:#aac4ff;font-size:11px">Dólares de los EE.UU.</div>
+    </div>
+
+    <div class="row"><span class="lbl">Cliente</span><span><b>${datos.cliente.nombre}</b></span></div>
+    <div class="row"><span class="lbl">DUI</span><span>${datos.cliente.dui||'—'}</span></div>
+    <div class="row"><span class="lbl">Cuota(s)</span><span>${cuotaLabel}</span></div>
+    <div class="row"><span class="lbl">Abono</span><span>${fmtM(datos.monto)}</span></div>
+    ${datos.mora>0?`<div class="row"><span class="lbl">Mora</span><span style="color:#c62828">${fmtM(datos.mora)}</span></div>`:''}
+    <div class="row"><span class="lbl">Fecha</span><span>${fecha}</span></div>
+
+    ${dteJson ? `
+    <div style="margin-top:16px;font-size:12px;color:#555;font-weight:700">Número de Control DTE</div>
+    <div class="code">${numCtrl}</div>
+    <div style="margin-top:8px;font-size:12px;color:#555;font-weight:700">Código de Generación</div>
+    <div class="code">${codGen}</div>
+    ${sello?`<div style="margin-top:8px;font-size:12px;color:#555;font-weight:700">Sello de Recepción MH</div><div class="code">${sello}</div>`:''}
+    ` : ''}
+
+    <div class="nota">
+      ${dteJson
+        ? '📋 Este documento es su Factura Electrónica emitida al Ministerio de Hacienda de El Salvador. Consérvelo para sus registros.'
+        : '📋 Este es su comprobante de pago emitido por CAS Express.'
+      }
+    </div>
+  </div>
+</div>
+<div class="foot">CAS Express · Este correo fue generado automáticamente · No responder</div>
+</div></body></html>`;
+}
+
+/* ── IPC: leer configuración DTE ── */
+ipcMain.handle('leer-config-dte', async () => {
+  try {
+    const p = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch(e) { return null; }
+});
+
+/* ── IPC: guardar configuración DTE ── */
+ipcMain.handle('guardar-config-dte', async (_event, config) => {
+  try {
+    const p = path2.join(app.getPath('userData'), 'dte-config.json');
+    fs.writeFileSync(p, JSON.stringify(config, null, 2), 'utf8');
+    return { ok: true };
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
+/* ── IPC: enviar DTE a Hacienda + email al cliente ── */
+ipcMain.handle('enviar-dte', async (_event, datos) => {
+  try {
+    const cfgPath = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(cfgPath))
+      return { ok: false, error: 'Configure DTE primero en Ajustes → Facturación Electrónica.' };
+
+    const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!config.nit || !config.nrc || !config.passwordCert)
+      return { ok: false, error: 'Faltan datos: NIT, NRC o contraseña del certificado Hacienda.' };
+
+    // Construir FCF
+    const dteJson = _construirFCF(config, datos);
+    const baseUrl = config.ambiente === '00'
+      ? 'https://apitest.dtes.mh.gob.sv'
+      : 'https://api.dtes.mh.gob.sv';
+
+    // 1. Auth Hacienda
+    const authRes = await _httpsPost(`${baseUrl}/seguridad/auth`, {
+      user: config.nit,
+      pwd:  config.passwordCert,
+    });
+    const token = authRes.body?.body?.token || authRes.body?.token;
+    if (!token)
+      return { ok: false, error: `Autenticación Hacienda fallida: ${JSON.stringify(authRes.body)}` };
+
+    // 2. Enviar DTE
+    const dteRes = await _httpsPost(`${baseUrl}/fesv/recepciondte`, {
+      nit:         config.nit,
+      activo:      true,
+      passwordPri: config.passwordCert,
+      dteJson,
+    }, { Authorization: token });
+
+    // Verificar respuesta (Hacienda puede devolver 200 o 201 según versión)
+    const bodyDte = dteRes.body?.body || dteRes.body || {};
+    const estado  = bodyDte.estado || bodyDte.status || '';
+    if (dteRes.status !== 200 && dteRes.status !== 201 && estado !== 'PROCESADO') {
+      const msg = bodyDte.descripcionMsg || bodyDte.descripcion || JSON.stringify(bodyDte);
+      return { ok: false, error: `Hacienda rechazó el DTE: ${msg}` };
+    }
+    const sello = bodyDte.selloRecibido || '';
+
+    // 3. Incrementar correlativo
+    config.correlativo = (config.correlativo || 1) + 1;
+    fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
+
+    // 4. Enviar email si el cliente tiene correo
+    let emailEnviado = false;
+    let emailError   = null;
+    if (datos.cliente.correo && config.gmailUser && config.gmailPass) {
+      try {
+        const nm = require('nodemailer');
+        const tr = nm.createTransport({
+          service: 'gmail',
+          auth: { user: config.gmailUser, pass: config.gmailPass },
+        });
+        await tr.sendMail({
+          from:    `"CAS Express" <${config.gmailUser}>`,
+          to:      datos.cliente.correo,
+          subject: `Factura Electrónica CAS Express — ${dteJson.identificacion.fecEmi}`,
+          html:    _htmlEmail(datos, dteJson, sello),
+        });
+        emailEnviado = true;
+      } catch(e) { emailError = String(e); }
+    }
+
+    return {
+      ok: true,
+      codigoGeneracion: dteJson.identificacion.codigoGeneracion,
+      numeroControl:    dteJson.identificacion.numeroControl,
+      sello,
+      emailEnviado,
+      emailError: emailError || undefined,
+    };
+
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
+/* ── IPC: enviar solo email comprobante (sin DTE) ── */
+ipcMain.handle('enviar-email-cobro', async (_event, datos) => {
+  try {
+    const cfgPath = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(cfgPath))
+      return { ok: false, error: 'Configure el correo en Ajustes → Facturación Electrónica.' };
+
+    const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!config.gmailUser || !config.gmailPass)
+      return { ok: false, error: 'Configure Gmail en Ajustes → Facturación Electrónica.' };
+
+    const nm = require('nodemailer');
+    const tr = nm.createTransport({
+      service: 'gmail',
+      auth: { user: config.gmailUser, pass: config.gmailPass },
+    });
+
+    const fecha = new Date().toLocaleDateString('es-SV', { timeZone:'America/El_Salvador', dateStyle:'long' });
+
+    await tr.sendMail({
+      from:    `"CAS Express" <${config.gmailUser}>`,
+      to:      datos.cliente.correo,
+      subject: `Comprobante de pago CAS Express — ${fecha}`,
+      html:    _htmlEmail(datos, null, null),
+    });
+
+    return { ok: true };
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
+/* ── IPC: construir DTE localmente (sin enviar a Hacienda) ── */
+ipcMain.handle('construir-dte', async (_event, datos) => {
+  try {
+    const cfgPath = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(cfgPath))
+      return { ok: false, error: 'Configure DTE primero en Ajustes → Facturación Electrónica.' };
+
+    const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!config.nit || !config.nrc)
+      return { ok: false, error: 'Faltan datos: NIT o NRC en la configuración DTE.' };
+
+    const dteJson = _construirFCF(config, datos);
+
+    // Incrementar correlativo y guardar
+    config.correlativo = (config.correlativo || 1) + 1;
+    fs.writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
+
+    return {
+      ok: true,
+      dteJson,
+      codigoGeneracion: dteJson.identificacion.codigoGeneracion,
+      numeroControl:    dteJson.identificacion.numeroControl,
+    };
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
+/* ── IPC: enviar DTE de la cola a Hacienda ── */
+ipcMain.handle('enviar-dte-cola', async (_event, dteJson) => {
+  try {
+    const cfgPath = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(cfgPath))
+      return { ok: false, error: 'Configure DTE primero.' };
+
+    const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!config.nit || !config.passwordCert)
+      return { ok: false, error: 'Faltan credenciales Hacienda en la configuración DTE.' };
+
+    const baseUrl = config.ambiente === '00'
+      ? 'https://apitest.dtes.mh.gob.sv'
+      : 'https://api.dtes.mh.gob.sv';
+
+    // 1. Auth
+    const authRes = await _httpsPost(`${baseUrl}/seguridad/auth`, {
+      user: config.nit,
+      pwd:  config.passwordCert,
+    });
+    const token = authRes.body?.body?.token || authRes.body?.token;
+    if (!token)
+      return { ok: false, error: `Auth Hacienda falló: ${JSON.stringify(authRes.body)}` };
+
+    // 2. Enviar
+    const dteRes = await _httpsPost(`${baseUrl}/fesv/recepciondte`, {
+      nit:         config.nit,
+      activo:      true,
+      passwordPri: config.passwordCert,
+      dteJson,
+    }, { Authorization: token });
+
+    const bodyDte = dteRes.body?.body || dteRes.body || {};
+    const estado  = bodyDte.estado || bodyDte.status || '';
+    if (dteRes.status !== 200 && dteRes.status !== 201 && estado !== 'PROCESADO') {
+      const msg = bodyDte.descripcionMsg || bodyDte.descripcion || JSON.stringify(bodyDte);
+      return { ok: false, error: `Hacienda rechazó: ${msg}` };
+    }
+
+    return { ok: true, sello: bodyDte.selloRecibido || '' };
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
+/* ── IPC: enviar email con factura adjunta ── */
+ipcMain.handle('enviar-email-dte', async (_event, { datos, dteJson, sello }) => {
+  try {
+    const cfgPath = path2.join(app.getPath('userData'), 'dte-config.json');
+    if (!fs.existsSync(cfgPath)) return { ok: false, error: 'Configure Gmail primero.' };
+    const config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!config.gmailUser || !config.gmailPass) return { ok: false, error: 'Configure Gmail.' };
+    if (!datos.cliente.correo) return { ok: false, error: 'El cliente no tiene correo.' };
+
+    const nm = require('nodemailer');
+    const tr = nm.createTransport({
+      service: 'gmail',
+      auth: { user: config.gmailUser, pass: config.gmailPass },
+    });
+    const fecha = dteJson?.identificacion?.fecEmi || new Date().toLocaleDateString('es-SV');
+    await tr.sendMail({
+      from:    `"CAS Express" <${config.gmailUser}>`,
+      to:      datos.cliente.correo,
+      subject: `Factura Electrónica CAS Express — ${fecha}`,
+      html:    _htmlEmail(datos, dteJson, sello),
+    });
+    return { ok: true };
+  } catch(e) { return { ok: false, error: String(e) }; }
+});
+
 /* ── App ready ── */
 app.whenReady().then(() => {
   createWindow();

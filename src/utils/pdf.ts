@@ -6,7 +6,7 @@ import { Prestamo, CuotaCalendar, Cliente } from '../types';
 import { formatMoneda, formatFecha, calcularVencimiento, tablaAmortizacion, calcularCuotaAmort, TASA_ANUAL_BCR } from './calculos';
 
 const EMPRESA = 'SOLUCIONES FINANCIERAS CAS EXPRESS';
-const SLOGAN  = 'Créditos Legales · BCR';
+const SLOGAN  = '';
 
 /* ── Utilidades internas ──────────────────────────────────────── */
 /** Normaliza el número de expediente: si no trae "EXP-" lo agrega */
@@ -349,7 +349,7 @@ export async function generarPDFPagare(prestamo: any) {
   const firmaStr    = _fechaFirmaPagare(fechaFirma);
   const nombre      = c.nombre   || '___________________________';
   const edad        = c.edad     || '___';
-  const profesion   = c.profesion || 'Empleado';
+  const profesion   = c.profesion || '___________________________';
   const domicilio   = c.direccion || 'Distrito de Tamanique, Municipio de La Libertad Costa, Departamento de La Libertad';
   const dui         = c.dui      || '___________________________';
   const nit         = c.nit      || '___________________________';
@@ -514,36 +514,36 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
 
   const tablaRows = tabla.map(r => `
     <tr>
-      <td style="text-align:center;padding:2px 4px;border:1px solid #ddd">${r.numero}</td>
-      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd">$${r.saldo.toFixed(2)}</td>
-      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd">$${r.cuota.toFixed(2)}</td>
-      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd;color:#c62828">$${r.interes.toFixed(2)}</td>
-      <td style="text-align:right;padding:2px 4px;border:1px solid #ddd;color:#2e7d32">$${r.abono.toFixed(2)}</td>
+      <td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${r.numero}</td>
+      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd">$${r.saldo.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd">$${r.cuota.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd;color:#c62828">$${r.interes.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd;color:#2e7d32">$${r.abono.toFixed(2)}</td>
     </tr>`).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     ${PAGE_RESET}
-    @page{size:letter;margin:8mm 12mm}
-    body{font-family:Arial,sans-serif;padding:10px 16px;font-size:10.5px;color:#111;max-width:760px;margin:0 auto}
+    @page{size:letter;margin:10mm 14mm}
+    body{font-family:Arial,sans-serif;padding:10px 16px;font-size:12px;color:#111;max-width:760px;margin:0 auto}
     .logo{text-align:center;margin-bottom:4px}
-    .subtit{text-align:center;font-size:13px;font-weight:bold;margin-bottom:8px;letter-spacing:1px;text-decoration:underline}
-    .info-header{background:#f0f4ff;border:1px solid #c0d0ff;border-radius:4px;padding:5px 10px;margin-bottom:8px}
-    .info-header td{padding:1px 6px 1px 0;font-size:10px;vertical-align:top}
-    .intro{text-align:justify;margin-bottom:6px;font-size:10px;line-height:1.5}
-    .clausula{margin:5px 0}
-    .clausula-titulo{font-weight:bold;font-size:10px;background:#0a2463;color:#fff;padding:3px 8px;margin-bottom:4px;letter-spacing:.5px}
-    .clausula-body{text-align:justify;line-height:1.5;padding:0 4px;font-size:10px}
-    .amort-table{width:100%;border-collapse:collapse;font-size:9.5px;margin-top:6px;page-break-inside:avoid}
-    .amort-table th{background:#0a2463;color:#fff;padding:3px;text-align:center;border:1px solid #0a2463}
+    .subtit{text-align:center;font-size:15px;font-weight:bold;margin-bottom:8px;letter-spacing:1px;text-decoration:underline}
+    .info-header{background:#f0f4ff;border:1px solid #c0d0ff;border-radius:4px;padding:6px 12px;margin-bottom:8px}
+    .info-header td{padding:2px 8px 2px 0;font-size:11.5px;vertical-align:top}
+    .intro{text-align:justify;margin-bottom:7px;font-size:13px;line-height:1.7}
+    .clausula{margin:7px 0}
+    .clausula-titulo{font-weight:bold;font-size:13px;background:#0a2463;color:#fff;padding:5px 10px;margin-bottom:5px;letter-spacing:.5px}
+    .clausula-body{text-align:justify;line-height:1.7;padding:0 4px;font-size:13px}
+    .amort-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:8px;page-break-inside:avoid}
+    .amort-table th{background:#0a2463;color:#fff;padding:5px;text-align:center;border:1px solid #0a2463}
     .amort-table tbody tr:nth-child(even){background:#f5f5f5}
     .total-row td{font-weight:bold;background:#e8f5e9;padding:3px 4px;border:1px solid #999;border-top:2px solid #333}
-    .firma-sec{width:100%;border-collapse:collapse;margin-top:16px}
+    .firma-sec{width:100%;border-collapse:collapse;margin-top:40px}
     .firma-sec td{text-align:center;width:50%;padding-top:4px}
   </style></head><body>
 
   <div class="logo">
-    <div style="font-size:17px;font-weight:900;color:#0a2463;letter-spacing:1px">${EMPRESA}</div>
-    <div style="font-size:10px;color:#888">${SLOGAN}</div>
+    <div style="font-size:20px;font-weight:900;color:#0a2463;letter-spacing:1px">${EMPRESA}</div>
+    <div style="font-size:11px;color:#888">${SLOGAN}</div>
   </div>
   <div class="subtit">CONTRATO DE CRÉDITO</div>
 
@@ -789,16 +789,6 @@ export async function generarPDFSolicitud(cliente: Cliente, expediente: string) 
       <tbody>${filasDacion}</tbody>
     </table>
 
-    <div style="font-weight:bold;font-size:12px;margin-bottom:4px;text-align:center;background:#e0e0e0;padding:3px">
-      CARGOS MORATORIOS
-    </div>
-    <div style="font-size:12px;margin-bottom:2px">
-      1. Se recargará el 10% adicional al saldo que no se solvente luego de la fecha de vencimiento indicada.
-    </div>
-    <div style="font-size:12px;margin-bottom:10px">
-      2. Luego de 10 días de vencido el crédito y no retomar regularidad de abono o acuerdos de pago, se procederá
-      al retiro de los artículos comprometidos con la empresa ${EMPRESA}.
-    </div>
 
     <div style="display:flex;justify-content:space-between;margin-top:30px;font-size:14px">
       <div style="text-align:center;width:45%">
@@ -818,7 +808,7 @@ export async function generarPDFSolicitud(cliente: Cliente, expediente: string) 
     </div>
   </div>
 
-  <!-- ══════ PÁGINA 3: DECLARACIONES + COMITÉ EVALUADOR ══════ -->
+  <!-- ══════ PÁGINA 3: DECLARACIONES ══════ -->
   <div class="page-break">
     <div style="text-align:center;font-size:17px;font-weight:900;color:#0a2463;margin-bottom:12px">${EMPRESA}</div>
 
@@ -861,74 +851,6 @@ export async function generarPDFSolicitud(cliente: Cliente, expediente: string) 
       <div style="flex:1">
         <div style="font-size:13px;margin-bottom:4px">FIRMA:</div>
         <div style="border-bottom:2px solid #333;height:28px"></div>
-      </div>
-    </div>
-
-    <hr style="border:none;border-top:2px solid #333;margin-bottom:10px"/>
-
-    <!-- Declaración Jurada Veracidad -->
-    <div style="background:#333;color:#fff;text-align:center;font-weight:bold;font-size:14px;padding:6px;margin-bottom:10px;letter-spacing:1px">
-      DECLARACIÓN JURADA SOBRE LA VERACIDAD DE LA INFORMACIÓN
-    </div>
-    <div style="font-size:14px;margin-bottom:12px;text-align:justify;line-height:1.7">
-      Declaro que la información antes solicitada es verdadera y faculto a <b>${EMPRESA}</b> para que haga las
-      verificaciones necesarias, así como ser consultada en los buros de crédito y a su vez me someto a penalidades
-      de ley si la información fuese falsa.
-    </div>
-
-    <!-- Firma del cliente -->
-    <div style="display:flex;justify-content:space-between;margin-bottom:14px;gap:20px">
-      <div style="flex:1;text-align:center">
-        <div style="border-bottom:2px solid #333;height:36px;margin-bottom:6px"></div>
-        <div style="font-size:13px;font-weight:700">NOMBRE Y FIRMA DEL CLIENTE</div>
-      </div>
-      <div style="flex:1;text-align:center">
-        <div style="border-bottom:2px solid #333;height:36px;margin-bottom:6px"></div>
-        <div style="font-size:13px;font-weight:700">NOMBRE Y FIRMA DEL EJECUTIVO</div>
-      </div>
-    </div>
-
-    <!-- Espacio para Comité Evaluador -->
-    <div style="border:2px solid #333;padding:10px;page-break-inside:avoid">
-      <div style="font-weight:bold;font-size:14px;margin-bottom:10px;text-decoration:underline">
-        ESPACIO PARA COMITÉ EVALUADOR:
-      </div>
-
-      <div style="display:flex;gap:16px;margin-bottom:10px">
-        <div style="flex:2">
-          <div style="font-size:13px;margin-bottom:4px">CRÉDITO APROBADO POR: $</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:13px;margin-bottom:4px">CUOTA DE: $</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:16px;margin-bottom:10px">
-        <div style="flex:2">
-          <div style="font-size:13px;margin-bottom:4px">PLAZO DEL CRÉDITO:</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:13px;margin-bottom:4px">DÍAS:</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-        <div style="flex:2">
-          <div style="font-size:13px;margin-bottom:4px">A PARTIR DEL DÍA:</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-      </div>
-
-      <div style="display:flex;gap:16px;margin-bottom:4px">
-        <div style="flex:2">
-          <div style="font-size:13px;margin-bottom:4px">NOMBRE QUIEN AUTORIZA:</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:13px;margin-bottom:4px">FIRMA:</div>
-          <div style="border-bottom:2px solid #333;height:26px"></div>
-        </div>
       </div>
     </div>
 
@@ -1708,7 +1630,7 @@ export async function generarPDFFicha(prestamos: Prestamo[]) {
           <div class="logo-box">
             <div class="logo-sup">SOLUCIONES FINANCIERAS CAS EXPRESS</div>
             <div class="logo-nom">CAS Express</div>
-            <div class="logo-sub">CRÉDITOS LEGALES BCR</div>
+            <div class="logo-sub"></div>
           </div>
         </div>
         <div class="info-row" style="margin-bottom:${infoMb}">

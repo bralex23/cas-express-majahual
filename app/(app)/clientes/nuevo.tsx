@@ -19,6 +19,7 @@ export default function NuevoCliente() {
   const [nombre, setNombre]     = useState('');
   const [dui, setDui]           = useState('');
   const [telefono, setTelefono] = useState('');
+  const [email, setEmail]       = useState('');
 
   function formatearDui(texto: string) {
     // Solo conservar dígitos, máximo 9
@@ -29,6 +30,8 @@ export default function NuevoCliente() {
   const [direccion, setDir]     = useState('');
   const [mapsUrl, setMaps]      = useState('');
   const [geoCodigo, setGeo]     = useState('');
+  const [municipio, setMunicipio]   = useState('');
+  const [departamento, setDepto]    = useState('');
   const [notas, setNotas]           = useState('');
   const [expediente, setExpediente] = useState('');
   const [rutaId, setRutaId]         = useState(perfil?.ruta_id || '');
@@ -62,8 +65,9 @@ export default function NuevoCliente() {
       getDoc(doc(db, col('clientes'),params.id)).then(snap => {
         if (!snap.exists()) return;
         const d = snap.data();
-        setNombre(d.nombre||''); setDui(d.dui||''); setTelefono(d.telefono||'');
+        setNombre(d.nombre||''); setDui(d.dui||''); setTelefono(d.telefono||''); setEmail(d.email||'');
         setDir(d.direccion||''); setMaps(d.maps_url||''); setGeo(d.geo_codigo||''); setNotas(d.notas||'');
+        setDepto(d.departamento||''); setMunicipio(d.municipio||'');
         setExpediente(d.numero_expediente||''); setRutaId(d.ruta_id||''); setEdad(d.edad||'');
         setFoto(d.foto_url || null); setDuiR(d.dui_reverso_url || null);
         setReciboLuz(d.recibo_luz_url || null);
@@ -72,9 +76,9 @@ export default function NuevoCliente() {
       });
     } else {
       // Nuevo cliente: limpiar todos los campos
-      setNombre(''); setDui(''); setTelefono(''); setDir('');
+      setNombre(''); setDui(''); setTelefono(''); setEmail(''); setDir('');
       setMaps(''); setGeo(''); setNotas(''); setFoto(null); setDuiR(null); setReciboLuz(null);
-      setEdad('');
+      setEdad(''); setDepto(''); setMunicipio('');
       setRef1Nombre(''); setRef1Telefono(''); setRef1Parentesco('');
       setRef2Nombre(''); setRef2Telefono(''); setRef2Parentesco('');
       setRutaId(perfil?.ruta_id || ''); setError('');
@@ -183,9 +187,10 @@ export default function NuevoCliente() {
       if (reciboLuzUri && !reciboLuzUri.startsWith('http')) recibo_luz_url = await comprimirABase64(reciboLuzUri, 1600, 0.8);
 
       const data: Record<string, any> = {
-        nombre: nombre.trim(), dui: dui.trim(), telefono: telefono.trim(),
+        nombre: nombre.trim(), dui: dui.trim(), telefono: telefono.trim(), email: email.trim()||null,
         edad: edad.trim() || null,
-        direccion: direccion.trim(), maps_url: mapsUrl.trim(),
+        direccion: direccion.trim(), municipio: municipio.trim(), departamento: departamento.trim(),
+        maps_url: mapsUrl.trim(),
         geo_codigo: geoCodigo.trim(), notas: notas.trim(),
         numero_expediente: expediente.trim() || null,
         ruta_id: rutaId, foto_url, dui_reverso_url, recibo_luz_url, activo: true,
@@ -283,12 +288,48 @@ export default function NuevoCliente() {
           placeholder="00000000-0" right={dui.length===10 ? <TextInput.Icon icon="check-circle" color="#2e7d32"/> : undefined}/>
         <TextInput label="Teléfono" value={telefono} onChangeText={setTelefono}
           mode="outlined" style={s.input} keyboardType="phone-pad" />
+        <TextInput label="Correo electrónico (opcional)" value={email} onChangeText={setEmail}
+          mode="outlined" style={s.input} keyboardType="email-address" autoCapitalize="none"
+          left={<TextInput.Icon icon="email-outline"/>}/>
         <TextInput label="Edad" value={edad} onChangeText={setEdad}
           mode="outlined" style={s.input} keyboardType="numeric"
           left={<TextInput.Icon icon="cake-variant-outline"/>}
           placeholder="Ej: 35" maxLength={3}/>
-        <TextInput label="Dirección" value={direccion} onChangeText={setDir}
-          mode="outlined" style={s.input} multiline />
+        {/* ── Departamento / Municipio (para DTE) ── */}
+        <Text style={[s.label, { marginTop:4, color:'#1565c0' }]}>
+          📋 Ubicación para facturación electrónica
+        </Text>
+        <Text style={{ fontSize:11, color:'#888', marginBottom:8, marginTop:-4 }}>
+          Departamento y municipio requeridos por Hacienda para el DTE
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          style={{ marginBottom:10 }} contentContainerStyle={{ gap:6, paddingBottom:4 }}>
+          {['Ahuachapán','Santa Ana','Sonsonate','Chalatenango','La Libertad',
+            'San Salvador','Cuscatlán','La Paz','Cabañas','San Vicente',
+            'Usulután','San Miguel','Morazán','La Unión'].map(dep => (
+            <TouchableOpacity key={dep}
+              onPress={() => setDepto(dep)}
+              style={{
+                paddingHorizontal:12, paddingVertical:6, borderRadius:20,
+                borderWidth:1.5,
+                borderColor: departamento === dep ? '#1565c0' : '#ccc',
+                backgroundColor: departamento === dep ? '#e3f2fd' : 'transparent',
+              }}>
+              <Text style={{
+                fontSize:12, fontWeight: departamento === dep ? '700' : '400',
+                color: departamento === dep ? '#1565c0' : '#555',
+              }}>
+                {departamento === dep ? '✓ ' : ''}{dep}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+        <TextInput label="Municipio" value={municipio} onChangeText={setMunicipio}
+          mode="outlined" style={s.input} placeholder="Ej: Tamanique"
+          left={<TextInput.Icon icon="map-marker-outline"/>}/>
+        <TextInput label="Dirección / Complemento" value={direccion} onChangeText={setDir}
+          mode="outlined" style={s.input} multiline
+          placeholder="Col., calle, número de casa..." />
         <TextInput label="Link de Google Maps (opcional)" value={mapsUrl} onChangeText={setMaps}
           mode="outlined" style={s.input}
           right={mapsUrl ? <TextInput.Icon icon="open-in-new" onPress={() => Linking.openURL(mapsUrl)} /> : undefined}/>

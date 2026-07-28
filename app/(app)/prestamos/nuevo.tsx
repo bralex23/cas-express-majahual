@@ -9,18 +9,18 @@ import { useAuth } from '../../../src/hooks/useAuth';
 import { useColors, glassStyle, glassBgStyle } from '../../../src/theme';
 const w = (s: any) => s;
 import { Cliente, Frecuencia, Prestamo } from '../../../src/types';
-import { calcularFechaFin, formatMoneda, hoy, FRECUENCIAS, calcularCuotaAmort, calcularTotalAmort, tablaAmortizacion, TASA_ANUAL_BCR as BCR_RATE } from '../../../src/utils/calculos';
+import { calcularFechaFin, formatMoneda, hoy, FRECUENCIAS, calcularCuotaAmort, calcularTotalAmort, tablaAmortizacion, SEGMENTOS_BCR } from '../../../src/utils/calculos';
 import { cache } from '../../../src/utils/cache';
-
-const TASA_ANUAL_BCR = BCR_RATE;
 
 /* ── Plazos fijos según modalidad ── */
 const PLAZOS_DIARIO = [
   { dias: 22, cuotas: 22, label: '22 días' },
   { dias: 29, cuotas: 29, label: '29 días' },
+  { dias: 30, cuotas: 30, label: '30 días' },
   { dias: 40, cuotas: 40, label: '40 días' },
 ];
 const PLAZOS_SEMANAL = [
+  { dias: 21, cuotas: 3, label: '3 semanas' },
   { dias: 28, cuotas: 4, label: '4 semanas' },
   { dias: 42, cuotas: 6, label: '6 semanas' },
   { dias: 56, cuotas: 8, label: '8 semanas' },
@@ -38,6 +38,7 @@ export default function NuevoPrestamo() {
   const [prestamosActivos, setActivos]  = useState<Prestamo[]>([]);
 
   const [monto, setMonto]               = useState('');
+  const [segmento, setSegmento]         = useState(SEGMENTOS_BCR[0]); // 82.87% por defecto
   const [modalidad, setModalidad]       = useState<'diario' | 'semanal'>('diario');
   // plazoSel guarda el objeto completo del plazo seleccionado
   const [plazoSel, setPlazoSel]         = useState<{dias:number;cuotas:number;label:string}|null>(null);
@@ -54,11 +55,12 @@ export default function NuevoPrestamo() {
   const montoN    = parseFloat(monto) || 0;
   const diasN     = plazoSel?.dias   || 0;
   const numCuotas = plazoSel?.cuotas || 0;
-  const cuota     = montoN > 0 && numCuotas > 0 ? calcularCuotaAmort(montoN, numCuotas, frecuencia) : 0;
-  const total     = montoN > 0 && numCuotas > 0 ? calcularTotalAmort(montoN, numCuotas, frecuencia) : 0;
+  const TASA_ANUAL_BCR = segmento.tasa;
+  const cuota     = montoN > 0 && numCuotas > 0 ? calcularCuotaAmort(montoN, numCuotas, frecuencia, TASA_ANUAL_BCR) : 0;
+  const total     = montoN > 0 && numCuotas > 0 ? calcularTotalAmort(montoN, numCuotas, frecuencia, TASA_ANUAL_BCR) : 0;
   const interesAmt   = Math.round((total - montoN) * 100) / 100;
   const interesPorc  = montoN > 0 ? parseFloat((interesAmt / montoN * 100).toFixed(4)) : 0;
-  const tabla        = montoN > 0 && numCuotas > 0 ? tablaAmortizacion(montoN, numCuotas, frecuencia) : [];
+  const tabla        = montoN > 0 && numCuotas > 0 ? tablaAmortizacion(montoN, numCuotas, frecuencia, TASA_ANUAL_BCR) : [];
   const fechaFin     = diasN > 0 && montoN > 0 && fechaInicio.length === 10
     ? calcularFechaFin(fechaInicio, numCuotas, frecuencia)
     : '';
@@ -120,6 +122,7 @@ export default function NuevoPrestamo() {
         observaciones:    obs || '',
         numero_credito:   numerCredito,
         tasa_anual_bcr:   TASA_ANUAL_BCR,
+        segmento_bcr:     segmento.label,
         created_at:       new Date().toISOString(),
       });
 
@@ -127,7 +130,7 @@ export default function NuevoPrestamo() {
       cache.invalidate('dashboard_');
       Alert.alert(
         '✅ Préstamo creado',
-        `Crédito #${numerCredito}\nPlazo: ${plazoSel.label} · ${numCuotas} cuotas\nCuota ${frecuencia}: ${formatMoneda(cuota)}\nInterés: ${interesPorc.toFixed(2)}% (BCR 82.87% anual)`
+        `Crédito #${numerCredito}\nPlazo: ${plazoSel.label} · ${numCuotas} cuotas\nCuota ${frecuencia}: ${formatMoneda(cuota)}\nInterés: ${interesPorc.toFixed(2)}% (BCR ${segmento.tasa}% anual)`
       );
       router.back();
     } catch(e: any) {
@@ -144,10 +147,35 @@ export default function NuevoPrestamo() {
     <ScrollView style={s.container} contentContainerStyle={{ padding: 16 }}>
       <Text variant="titleLarge" style={s.titulo}>Nuevo Préstamo</Text>
 
-      {/* Aviso tasa BCR */}
+      {/* Selector de segmento BCR */}
       <View style={s.bcrBanner}>
-        <Text style={s.bcrTxt}>🏛️ Tasa BCR: 82.87% anual máxima legal</Text>
-        <Text style={s.bcrSub}>Seg. 3 — Crédito consumo sin descuento · Vig. Jul–Dic 2026</Text>
+        <Text style={s.bcrTxt}>🏛️ Segmento BCR — Tasa máxima legal</Text>
+        <Text style={s.bcrSub}>Vigente Jul–Dic 2026 · Ley Contra la Usura</Text>
+        <View style={{ flexDirection:'row', gap:8, marginTop:10 }}>
+          {SEGMENTOS_BCR.map(seg => (
+            <TouchableOpacity
+              key={seg.tasa}
+              onPress={() => setSegmento(seg)}
+              style={{
+                flex:1, borderRadius:10, padding:10, alignItems:'center',
+                backgroundColor: segmento.tasa === seg.tasa ? '#2e7d32' : 'rgba(46,125,50,0.15)',
+                borderWidth:1, borderColor: segmento.tasa === seg.tasa ? '#2e7d32' : 'rgba(46,125,50,0.4)',
+              }}>
+              <Text style={{ fontSize:18, fontWeight:'900',
+                color: segmento.tasa === seg.tasa ? '#fff' : '#2e7d32' }}>
+                {seg.tasa}%
+              </Text>
+              <Text style={{ fontSize:10, textAlign:'center', marginTop:2,
+                color: segmento.tasa === seg.tasa ? '#c8e6c9' : '#388e3c' }}>
+                {seg.label}
+              </Text>
+              <Text style={{ fontSize:9, textAlign:'center', marginTop:1,
+                color: segmento.tasa === seg.tasa ? '#a5d6a7' : '#66bb6a' }}>
+                {seg.desc}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       {/* Cliente */}
@@ -223,7 +251,7 @@ export default function NuevoPrestamo() {
         <Text style={s.label}>Plazo *</Text>
         <View style={s.plazoRow}>
           {(modalidad === 'diario' ? PLAZOS_DIARIO : PLAZOS_SEMANAL).map(p => {
-            const pct     = ((TASA_ANUAL_BCR/100)*(p.dias/365)*100).toFixed(2);
+            const pct     = ((segmento.tasa/100)*(p.dias/365)*100).toFixed(2);
             const selected = plazoSel?.dias === p.dias;
             return (
               <TouchableOpacity
@@ -276,7 +304,7 @@ export default function NuevoPrestamo() {
         <View style={s.resumen}>
           <Text style={s.resumenTit}>📊 Resumen del préstamo</Text>
           <Text style={{fontSize:11,color:'#2e7d32',marginBottom:10,fontStyle:'italic'}}>
-            ✅ Interés calculado sobre saldo pendiente (método legal BCR)
+            ✅ Interés sobre saldo pendiente · {segmento.label} · {segmento.tasa}% anual
           </Text>
           <View style={s.resumenRow}>
             <Text style={s.resumenLbl}>Capital prestado:</Text>
@@ -368,8 +396,8 @@ const makeStyles = (C: any) => StyleSheet.create({
   // Formulario
   formPanel:      {borderRadius:16,padding:12,marginBottom:12, ...glassStyle(C)},
   // Plazos fijos
-  plazoRow:       {flexDirection:'row',gap:10,marginBottom:14},
-  plazoBtn:       {flex:1,borderWidth:2,borderColor:C.border,borderRadius:12,padding:12,alignItems:'center'},
+  plazoRow:       {flexDirection:'row',gap:10,marginBottom:14,flexWrap:'wrap'},
+  plazoBtn:       {flexBasis:'45%',flexGrow:1,borderWidth:2,borderColor:C.border,borderRadius:12,padding:12,alignItems:'center'},
   plazoBtnActive: {backgroundColor:C.primary,borderColor:C.primary},
   plazoDias:      {fontSize:15,fontWeight:'800',color:C.text},
   plazoTasa:      {fontSize:11,color:C.textTer,marginTop:2},

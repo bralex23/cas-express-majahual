@@ -580,20 +580,16 @@ export default function ReporteDiario() {
                           style={{ borderColor: '#e65100', borderRadius: 8 }}>
                           PDF
                         </Button>
-                        {isSupervisor && (
-                          <Button mode="outlined" compact onPress={() => abrirEdicion(r)}
-                            disabled={loading} textColor="#42a5f5"
-                            style={{ borderColor: '#42a5f5', borderRadius: 8 }}>
-                            Editar
-                          </Button>
-                        )}
-                        {isSupervisor && (
-                          <Button mode="outlined" compact onPress={() => borrarReporte(r)}
-                            disabled={loading} textColor="#ef5350"
-                            style={{ borderColor: '#ef5350', borderRadius: 8 }}>
-                            Borrar
-                          </Button>
-                        )}
+                        <Button mode="outlined" compact onPress={() => abrirEdicion(r)}
+                          disabled={loading} textColor="#42a5f5"
+                          style={{ borderColor: '#42a5f5', borderRadius: 8 }}>
+                          Editar
+                        </Button>
+                        <Button mode="outlined" compact onPress={() => borrarReporte(r)}
+                          disabled={loading} textColor="#ef5350"
+                          style={{ borderColor: '#ef5350', borderRadius: 8 }}>
+                          Borrar
+                        </Button>
                       </View>
                     )}
                   </View>

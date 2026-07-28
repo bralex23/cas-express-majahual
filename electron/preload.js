@@ -31,4 +31,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   generateCuadroCobrador: (datos) =>
     ipcRenderer.invoke('generate-cuadro-cobrador', datos),
+
+  // ── Facturación Electrónica DTE ──
+  leerConfigDTE:   ()             => ipcRenderer.invoke('leer-config-dte'),
+  guardarConfigDTE:(config)       => ipcRenderer.invoke('guardar-config-dte', config),
+  enviarDTE:       (datos)        => ipcRenderer.invoke('enviar-dte', datos),
+  enviarEmailCobro:(datos)        => ipcRenderer.invoke('enviar-email-cobro', datos),
+
+  // ── Cola DTE (guardar local, enviar a Hacienda después) ──
+  construirDTE:    (datos)        => ipcRenderer.invoke('construir-dte', datos),
+  enviarDTECola:   (dteJson)      => ipcRenderer.invoke('enviar-dte-cola', dteJson),
+  enviarEmailDTE:  (args)         => ipcRenderer.invoke('enviar-email-dte', args),
 });

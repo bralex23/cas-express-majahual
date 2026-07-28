@@ -15,7 +15,7 @@ import { usePersonaEntrega } from '../../../src/hooks/usePersonaEntrega';
 import ModalPersonaEntrega from '../../../src/components/ModalPersonaEntrega';
 import {
   generarCalendario, calcularMora, calcularMulta, calcularCuota, calcularTotal, calcularFechaFin,
-  formatMoneda, formatFecha, hoy, FRECUENCIAS,
+  formatMoneda, formatFecha, hoy, FRECUENCIAS, tablaAmortizacion,
 } from '../../../src/utils/calculos';
 import { StaggerItem } from '../../../src/components/FadeIn';
 import { generarPDFPrestamo, generarPDFContrato, generarPDFSolicitud, generarPDFFicha, generarPDFCopiaDUI, generarPDFReciboLuz, generarPDFCancelado, generarPDFPagare, compartir } from '../../../src/utils/pdf';
@@ -56,6 +56,15 @@ export default function DetallePrestamo() {
   const [montoInput, setMontoInput] = useState('');
   // Mapa: numero_cuota → total abonado (para abonos parciales)
   const [pagadoXCuota, setPagadoXCuota] = useState<Map<number,number>>(new Map());
+
+  // Tabla de amortización indexada por número de cuota (DEBE ir antes de early returns)
+  const tablaAmortMap = useMemo(() => {
+    if (!prestamo) return new Map<number, any>();
+    const tabla = tablaAmortizacion(prestamo.monto, prestamo.plazo, prestamo.frecuencia);
+    const map = new Map<number, any>();
+    tabla.forEach(r => map.set(r.numero, r));
+    return map;
+  }, [prestamo]);
 
   // Distribución automática — DEBE ir después de todos los useState y antes de early returns
   const montoInputNum = parseFloat(montoInput.replace(',','.')) || 0;
@@ -835,6 +844,58 @@ export default function DetallePrestamo() {
                 </View>
               </>
             )}
+
+            {/* Desglose capital / interés */}
+            {(() => {
+              // Si hay distribución multi-cuota, mostrar cada una
+              const filas = distribucion.length > 0 ? distribucion : (
+                cuotaSel ? [{ cuota: cuotaSel, monto: prestamo.cuota, completo: true }] : []
+              );
+              if (filas.length === 0) return null;
+              const totalAbono   = filas.reduce((s,d) => s + (tablaAmortMap.get(d.cuota.numero)?.abono   ?? 0), 0);
+              const totalInteres = filas.reduce((s,d) => s + (tablaAmortMap.get(d.cuota.numero)?.interes ?? 0), 0);
+              return (
+                <View style={{ backgroundColor:'rgba(255,255,255,0.06)', borderRadius:10, padding:12,
+                  marginBottom:12, borderLeftWidth:3, borderLeftColor:'#c8a951' }}>
+                  <Text style={{ fontSize:9, fontWeight:'800', color:'rgba(255,255,255,0.4)',
+                    letterSpacing:0.8, textTransform:'uppercase', marginBottom:8 }}>
+                    DISTRIBUCIÓN {filas.length > 1 ? `(${filas.length} cuotas)` : 'DE ESTA CUOTA'}
+                  </Text>
+                  {filas.map(d => {
+                    const fila = tablaAmortMap.get(d.cuota.numero);
+                    if (!fila) return null;
+                    return (
+                      <View key={d.cuota.numero} style={{ marginBottom:8, paddingBottom:6,
+                        borderBottomWidth:1, borderBottomColor:'rgba(255,255,255,0.08)' }}>
+                        <Text style={{ fontSize:10, color:'#c8a951', fontWeight:'700', marginBottom:4 }}>
+                          Cuota #{d.cuota.numero} {!d.completo ? '(abono parcial)' : ''}
+                        </Text>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:3 }}>
+                          <Text style={{ fontSize:12, color:'rgba(255,255,255,0.7)' }}>💰 Capital</Text>
+                          <Text style={{ fontSize:13, fontWeight:'700', color:'#81c784' }}>{formatMoneda(fila.abono)}</Text>
+                        </View>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
+                          <Text style={{ fontSize:12, color:'rgba(255,255,255,0.7)' }}>📈 Interés</Text>
+                          <Text style={{ fontSize:13, fontWeight:'700', color:'#ef9a9a' }}>{formatMoneda(fila.interes)}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {filas.length > 1 && (
+                    <View style={{ flexDirection:'row', justifyContent:'space-between', paddingTop:4 }}>
+                      <Text style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>Total capital</Text>
+                      <Text style={{ fontSize:13, fontWeight:'700', color:'#81c784' }}>{formatMoneda(totalAbono)}</Text>
+                    </View>
+                  )}
+                  {filas.length > 1 && (
+                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:2 }}>
+                      <Text style={{ fontSize:12, color:'rgba(255,255,255,0.6)' }}>Total interés</Text>
+                      <Text style={{ fontSize:13, fontWeight:'700', color:'#ef9a9a' }}>{formatMoneda(totalInteres)}</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
 
             <Text style={{ fontSize: 12, color: C.textSec, marginBottom: 4 }}>Monto recibido del cliente</Text>
             {Platform.OS === 'web'

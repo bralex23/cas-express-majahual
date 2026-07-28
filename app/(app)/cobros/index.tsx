@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Modal, ScrollView, Platform } from 'react-native';
 import { Text, Card, Button, ActivityIndicator, Switch, TextInput } from 'react-native-paper';
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, getDoc, orderBy, writeBatch, increment } from 'firebase/firestore';
 import { db } from '../../../src/lib/firebase';
 import { useEmpresa } from '../../../src/context/empresa';
 import { useAuth } from '../../../src/hooks/useAuth';
@@ -9,7 +9,7 @@ import { useColors, glassStyle, glassNavyStyle, glassBgStyle } from '../../../sr
 import { StaggerItem } from '../../../src/components/FadeIn';
 const w = (s: any) => s;
 import { Prestamo, Pago } from '../../../src/types';
-import { calcularVencimiento, calcularMora, formatMoneda, formatFecha, hoy } from '../../../src/utils/calculos';
+import { calcularVencimiento, calcularMora, formatMoneda, formatFecha, hoy, tablaAmortizacion } from '../../../src/utils/calculos';
 import { generarPDFColecta, compartir, ItemColecta } from '../../../src/utils/pdf';
 import { useFocusEffect } from 'expo-router';
 import { usePersonaEntrega } from '../../../src/hooks/usePersonaEntrega';
@@ -22,6 +22,8 @@ interface CobrosItem {
   mora: number;
   clienteNombre: string;
   clienteTel: string;
+  clienteDui:    string;
+  clienteCorreo: string;
   expediente: string;
   geoCodigo: string;
   diasAtraso: number;
@@ -58,6 +60,28 @@ export default function Cobros() {
   const [busquedaCliente, setBusquedaCliente]         = useState('');
   const [cargandoClientes, setCargandoClientes]       = useState(false);
 
+  // ── Cargos de Administración distribuidos (vinculados al préstamo) ──
+  const [cargosAdmin, setCargosAdmin] = useState<{
+    id: string;
+    concepto: string;
+    monto_por_cuota: number;
+    cuotas_cobradas: number;
+    cuotas_plan: number;
+    cliente_nombre: string;
+    cliente_dui: string;
+  }[]>([]);
+  const [cobrandoAdmin, setCobrandoAdmin] = useState(false);
+
+  // ── Factura / DTE ──
+  const elAPI2 = typeof window !== 'undefined' ? (window as any).electronAPI : null;
+  const [ultimoPago, setUltimoPago]         = useState<any>(null);
+  // Modal factura interna editable
+  const [modalFactura, setModalFactura]     = useState(false);
+  const [itemsFactura, setItemsFactura]     = useState<{concepto:string;monto:number}[]>([]);
+  const [nuevoConcepto, setNuevoConcepto]   = useState('');
+  const [nuevoMonto, setNuevoMonto]         = useState('');
+  const [dteGuardado, setDteGuardado]       = useState<string|null>(null);
+
   // Selector "Persona/Cobrador que aparece en la colecta"
   const pe = usePersonaEntrega(perfil?.nombre);
 
@@ -81,9 +105,11 @@ export default function Cobros() {
               telefono:  d.telefono||'',
               expediente: d.numero_expediente||'',
               geoCodigo: d.geo_codigo||'',
+              dui:       d.dui||'',
+              correo:    d.email||'',
             };
           } else {
-            clienteCache[cid] = { nombre:'Cliente', telefono:'', expediente:'', geoCodigo:'' };
+            clienteCache[cid] = { nombre:'Cliente', telefono:'', expediente:'', geoCodigo:'', dui:'', correo:'' };
           }
         }
         return clienteCache[cid];
@@ -126,6 +152,8 @@ export default function Cobros() {
             prestamo: p, numeroCuota: n, fechaVencimiento: fv, mora,
             clienteNombre:  cliente.nombre,
             clienteTel:     cliente.telefono,
+            clienteDui:     cliente.dui,
+            clienteCorreo:  cliente.correo,
             expediente:     cliente.expediente,
             geoCodigo:      cliente.geoCodigo,
             diasAtraso:     dias,
@@ -149,14 +177,41 @@ export default function Cobros() {
   useFocusEffect(useCallback(() => { load(); }, [col]));
 
   // Abrir modal (unificado para hoy y pendientes)
-  function abrirModal(item: CobrosItem) {
+  async function abrirModal(item: CobrosItem) {
     setModalItem(item);
     setFechaPago(hoyStr);
     setConMora(false);
     setMultaInput('');
-    // Dejar vacío para que el cobrador ingrese el monto REAL recibido
-    // (la cuota se muestra como referencia abajo)
     setMontoInput('');
+    setCargosAdmin([]);
+    // Restaurar foco en Electron para que los inputs del modal funcionen
+    if (typeof document !== 'undefined') {
+      setTimeout(() => { document.body.focus(); }, 80);
+    }
+    // Cargar cargos de administración distribuidos activos para este préstamo
+    try {
+      const snap = await getDocs(
+        query(
+          collection(db, col('gastos_admin')),
+          where('prestamo_id', '==', item.prestamo.id),
+          where('tipo_cobro',  '==', 'distribuido'),
+          where('estado',      '==', 'activo'),
+        )
+      );
+      const pendientes = snap.docs
+        .map(d => ({
+          id:               d.id,
+          concepto:         (d.data().concepto as string) || '—',
+          monto_por_cuota:  (d.data().monto_por_cuota as number) || 0,
+          cuotas_cobradas:  (d.data().cuotas_cobradas as number) || 0,
+          cuotas_plan:      (d.data().cuotas_plan as number) || 1,
+          cliente_nombre:   (d.data().cliente_nombre as string) || item.clienteNombre,
+          cliente_dui:      (d.data().cliente_dui as string) || item.clienteDui,
+        }))
+        // Solo mostrar los que aún tienen cuotas pendientes
+        .filter(c => c.cuotas_cobradas < c.cuotas_plan);
+      setCargosAdmin(pendientes);
+    } catch (e) { console.warn('cargos admin:', e); }
   }
 
   async function confirmarPago() {
@@ -170,14 +225,80 @@ export default function Cobros() {
     setGuardando(true);
     try {
       const mora = conMora ? modalItem.mora : 0;
-      await registrarPagoDistribuido(modalItem, monto, mora, fechaPago, multa);
+      const distribucion = await registrarPagoDistribuido(modalItem, monto, mora, fechaPago, multa);
+
+      const datosPago = {
+        cliente: {
+          nombre:   modalItem.clienteNombre,
+          dui:      modalItem.clienteDui,
+          correo:   modalItem.clienteCorreo,
+          telefono: modalItem.clienteTel,
+        },
+        numeroCuota:    modalItem.numeroCuota,
+        monto,
+        mora,
+        distribuciones: distribucion,
+        prestamo: {
+          id:         modalItem.prestamo.id,
+          frecuencia: modalItem.prestamo.frecuencia,
+          plazo:      modalItem.prestamo.plazo,
+        },
+      };
+
+      // ── Auto-guardar DTE en cola (sin enviar a Hacienda) ──
+      let numControl: string | null = null;
+      if (elAPI2?.construirDTE) {
+        try {
+          const dteBuild = await elAPI2.construirDTE(datosPago);
+          if (dteBuild?.ok) {
+            numControl = dteBuild.numeroControl;
+            await addDoc(collection(db, col('dte_cola')), {
+              created_at:       new Date().toISOString(),
+              fecha_emision:    dteBuild.dteJson.identificacion.fecEmi,
+              cliente_nombre:   modalItem.clienteNombre,
+              cliente_dui:      modalItem.clienteDui,
+              cliente_correo:   modalItem.clienteCorreo,
+              monto:            monto + mora,
+              numeroCuota:      modalItem.numeroCuota,
+              prestamo_id:      modalItem.prestamo.id,
+              estado:           'pendiente',
+              dteJson:          dteBuild.dteJson,
+              codigoGeneracion: dteBuild.codigoGeneracion,
+              numeroControl:    dteBuild.numeroControl,
+            });
+          }
+        } catch(e) { console.warn('DTE cola error:', e); }
+      }
+
+      // ── Preparar factura interna ──
+      setUltimoPago(datosPago);
+      setDteGuardado(numControl);
+      const itemsBase: {concepto:string;monto:number}[] = distribucion.map(d => ({
+        concepto: d.numero > 1
+          ? `Cuotas #${distribucion[0].numero}–#${d.numero} (${distribucion.length} cuotas)`
+          : `Abono cuota #${d.numero} · Préstamo ${modalItem.prestamo.id.slice(-6).toUpperCase()}`,
+        monto: d.monto,
+      }));
+      // Solo 1 ítem si se cubren varias cuotas (consolidar)
+      const itemsConsolidados = distribucion.length > 1
+        ? [{
+            concepto: `Cuotas #${distribucion[0].numero}–#${distribucion[distribucion.length-1].numero} (${distribucion.length}) · ${modalItem.prestamo.id.slice(-6).toUpperCase()}`,
+            monto: distribucion.reduce((a,d)=>a+d.monto, 0),
+          }]
+        : itemsBase;
+      if (mora > 0) itemsConsolidados.push({ concepto: 'Mora por atraso', monto: mora });
+      if (multa > 0) itemsConsolidados.push({ concepto: 'Multa', monto: multa });
+      setItemsFactura(itemsConsolidados);
+      setNuevoConcepto('');
+      setNuevoMonto('');
       setModalItem(null);
+      setModalFactura(true);
       load();
     } catch(e) { console.error(e); }
     setGuardando(false);
   }
 
-  async function registrarPagoDistribuido(item: CobrosItem, montoTotal: number, mora: number, fechaPagoVal: string, multa: number = 0) {
+  async function registrarPagoDistribuido(item: CobrosItem, montoTotal: number, mora: number, fechaPagoVal: string, multa: number = 0): Promise<{numero:number;monto:number}[]> {
     const { prestamo } = item;
 
     // Obtener todas las cuotas pendientes del préstamo en orden
@@ -187,6 +308,9 @@ export default function Cobros() {
     pagosExistentes.forEach(pg => {
       pagadoXCuota.set(pg.numero_cuota, (pagadoXCuota.get(pg.numero_cuota)||0) + (pg.monto_pagado||0));
     });
+
+    // Tabla de amortización completa para desglose capital/interés
+    const tablaAmort = tablaAmortizacion(prestamo.monto, prestamo.plazo, prestamo.frecuencia);
 
     // Construir lista de cuotas pendientes en orden
     const pendientes: { numero: number; fv: string; saldo: number }[] = [];
@@ -202,6 +326,7 @@ export default function Cobros() {
     let remaining = montoTotal;
     const ops: Promise<any>[] = [];
     let esPrimera = true;
+    const distribucionResult: {numero:number;monto:number}[] = [];
 
     for (let i = 0; i < pendientes.length; i++) {
       const cuota = pendientes[i];
@@ -212,12 +337,16 @@ export default function Cobros() {
       const pagoEsta = esUltima ? remaining : cuota.saldo;
       remaining     -= pagoEsta;
       const esCompleto = pagoEsta >= cuota.saldo;
+      distribucionResult.push({ numero: cuota.numero, monto: pagoEsta });
 
+      const filaAmort = tablaAmort[cuota.numero - 1];
       ops.push(addDoc(collection(db, col('prestamos'), prestamo.id, 'pagos'), {
         prestamo_id:       prestamo.id,
         numero_cuota:      cuota.numero,
         monto_cuota:       prestamo.cuota,
         monto_pagado:      pagoEsta,
+        abono_capital:     filaAmort?.abono  ?? null,
+        interes_ordinario: filaAmort?.interes ?? null,
         mora:              esPrimera ? mora : 0,
         tipo:              esCompleto ? 'completo' : 'abono',
         fecha_vencimiento: cuota.fv,
@@ -258,6 +387,7 @@ export default function Cobros() {
     if (cuotasCompletas >= prestamo.plazo) {
       await updateDoc(doc(db, col('prestamos'),prestamo.id), { estado:'completado' });
     }
+    return distribucionResult;
   }
 
   function generarReportePDF() {
@@ -324,12 +454,187 @@ export default function Cobros() {
     setGuardandoMulta(false);
   }
 
+  /* ── Cobrar cargos admin distribuidos (una cuota de cada cargo activo) ── */
+  async function cobrarAdmin() {
+    if (!modalItem || cargosAdmin.length === 0) return;
+    setCobrandoAdmin(true);
+    try {
+      const ahora = new Date().toISOString();
+      await Promise.all(cargosAdmin.map(async c => {
+        const nuevasCobradas = c.cuotas_cobradas + 1;
+        const completo = nuevasCobradas >= c.cuotas_plan;
+        await updateDoc(doc(db, col('gastos_admin'), c.id), {
+          cuotas_cobradas: increment(1),
+          cobrador_id:     perfil?.id || '',
+          ...(completo ? { estado: 'cobrado', cobrado_at: ahora } : {}),
+        });
+      }));
+
+      // Factura admin separada — muestra el monto POR CUOTA de cada cargo
+      const itemsFactura = cargosAdmin.map(c => ({
+        concepto: `${c.concepto} (cuota ${c.cuotas_cobradas + 1}/${c.cuotas_plan})`,
+        monto:    c.monto_por_cuota,
+      }));
+      imprimirFacturaAdmin(
+        { nombre: modalItem.clienteNombre, dui: modalItem.clienteDui },
+        itemsFactura,
+        fechaPago,
+      );
+
+      // Actualizar estado local (incrementar cuotas_cobradas)
+      setCargosAdmin(prev =>
+        prev
+          .map(c => ({ ...c, cuotas_cobradas: c.cuotas_cobradas + 1 }))
+          .filter(c => c.cuotas_cobradas < c.cuotas_plan)
+      );
+    } catch (e) { console.error(e); alert('Error al cobrar cargos admin'); }
+    setCobrandoAdmin(false);
+  }
+
+  function imprimirFacturaAdmin(
+    cliente: { nombre: string; dui?: string },
+    items: { concepto: string; monto: number }[],
+    fecha: string,
+  ) {
+    const total = items.reduce((a, b) => a + b.monto, 0);
+    const fechaStr = new Date((fecha||hoyStr) + 'T12:00:00').toLocaleDateString('es-SV', {
+      weekday:'long', year:'numeric', month:'long', day:'numeric',
+    });
+    const numRec = Date.now().toString().slice(-6);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Cargo Admin CAS Express</title>
+<style>
+  @page{size:80mm auto;margin:4mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#000}
+  .hdr{text-align:center;border-bottom:2px solid #0a2463;padding-bottom:8px;margin-bottom:8px}
+  .emp{font-size:15px;font-weight:900;color:#0a2463;letter-spacing:1px}
+  .sub{font-size:9px;color:#555}
+  .badge{display:inline-block;background:#0a2463;color:#fff;font-size:9px;
+    padding:2px 8px;border-radius:10px;margin:4px 0;font-weight:700}
+  .meta{font-size:10px;color:#333;margin-bottom:6px}
+  .cli{background:#f5f7ff;border-left:3px solid #0a2463;padding:6px 8px;margin-bottom:10px}
+  .clinm{font-size:13px;font-weight:700;color:#0a2463}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th{background:#0a2463;color:#fff;font-size:9px;padding:5px 6px;text-align:left}
+  td{padding:5px 6px;border-bottom:1px solid #e0e0e0;font-size:11px}
+  .r{text-align:right;font-weight:600}
+  .tot td{font-size:13px;font-weight:800;color:#0a2463;padding:8px 6px;
+    border-top:2px solid #0a2463;border-bottom:none;background:#f0f4ff}
+  .firmas{display:flex;gap:20px;margin-top:20px}
+  .fbox{flex:1;text-align:center}
+  .fline{border-top:1px solid #333;margin:28px 0 4px}
+  .flbl{font-size:9px;color:#666}
+  .ftr{text-align:center;margin-top:12px;font-size:9px;color:#999;
+    border-top:1px dashed #ccc;padding-top:8px}
+</style></head><body>
+<div class="hdr">
+  <div class="emp">CAS EXPRESS</div>
+  <div class="sub">Soluciones Financieras · Majahual, La Libertad</div>
+  <div class="badge">CARGOS DE ADMINISTRACIÓN</div>
+</div>
+<div class="meta"><b>Recibo N°</b> ADM-${numRec} &nbsp;|&nbsp; <b>Fecha:</b> ${fechaStr}</div>
+<div class="cli">
+  <div class="clinm">${cliente.nombre.toUpperCase()}</div>
+  ${cliente.dui ? `<div class="sub">DUI: ${cliente.dui}</div>` : ''}
+</div>
+<table>
+  <thead><tr><th style="width:65%">CONCEPTO</th><th style="width:35%;text-align:right">MONTO</th></tr></thead>
+  <tbody>
+    ${items.map(it => `<tr><td>${it.concepto}</td><td class="r">$${it.monto.toFixed(2)}</td></tr>`).join('')}
+    <tr class="tot"><td>TOTAL</td><td class="r">$${total.toFixed(2)}</td></tr>
+  </tbody>
+</table>
+<div class="firmas">
+  <div class="fbox"><div class="fline"></div><div class="flbl">Cobrador / Asesor</div></div>
+  <div class="fbox"><div class="fline"></div><div class="flbl">Recibido por</div></div>
+</div>
+<div class="ftr"><div>GRACIAS POR USAR NUESTROS SERVICIOS</div></div>
+</body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(html); w.document.close(); w.print(); }
+  }
+
+  function imprimirFactura() {
+    if (!ultimoPago) return;
+    const total = itemsFactura.reduce((a, b) => a + b.monto, 0);
+    const fecha = new Date().toLocaleDateString('es-SV', {
+      weekday:'long', year:'numeric', month:'long', day:'numeric', timeZone:'America/El_Salvador',
+    });
+    const numRec = Date.now().toString().slice(-6);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Recibo CAS Express</title>
+<style>
+  @page{size:80mm auto;margin:4mm}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:Arial,sans-serif;font-size:11px;color:#000}
+  .hdr{text-align:center;border-bottom:2px solid #0a2463;padding-bottom:8px;margin-bottom:8px}
+  .emp{font-size:15px;font-weight:900;color:#0a2463;letter-spacing:1px}
+  .sub{font-size:9px;color:#555}
+  .meta{font-size:10px;color:#333;margin-bottom:6px}
+  .cli{background:#f5f7ff;border-left:3px solid #0a2463;padding:6px 8px;margin-bottom:10px}
+  .clinm{font-size:13px;font-weight:700;color:#0a2463}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th{background:#0a2463;color:#fff;font-size:9px;padding:5px 6px;text-align:left}
+  td{padding:5px 6px;border-bottom:1px solid #e0e0e0;font-size:11px}
+  .r{text-align:right;font-weight:600}
+  .tot td{font-size:13px;font-weight:800;color:#0a2463;padding:8px 6px;border-top:2px solid #0a2463;border-bottom:none;background:#f0f4ff}
+  .firmas{display:flex;gap:20px;margin-top:20px}
+  .fbox{flex:1;text-align:center}
+  .fline{border-top:1px solid #333;margin:28px 0 4px}
+  .flbl{font-size:9px;color:#666}
+  .ftr{text-align:center;margin-top:12px;font-size:9px;color:#999;border-top:1px dashed #ccc;padding-top:8px}
+  .dte-badge{background:#e8f5e9;border:1px solid #a5d6a7;border-radius:4px;padding:4px 6px;font-size:9px;color:#2e7d32;margin-bottom:8px}
+</style></head><body>
+<div class="hdr">
+  <div class="emp">CAS EXPRESS</div>
+  <div class="sub">Soluciones Financieras · Majahual, La Libertad</div>
+</div>
+<div class="meta"><b>Recibo N°</b> ${numRec} &nbsp;|&nbsp; <b>Fecha:</b> ${fecha}</div>
+<div class="cli">
+  <div class="clinm">${ultimoPago.cliente.nombre.toUpperCase()}</div>
+  ${ultimoPago.cliente.dui ? `<div class="sub">DUI: ${ultimoPago.cliente.dui}</div>` : ''}
+</div>
+${dteGuardado ? `<div class="dte-badge">🏛️ DTE en cola: ${dteGuardado}</div>` : ''}
+<table>
+  <thead><tr><th style="width:65%">CONCEPTO</th><th style="width:35%;text-align:right">MONTO</th></tr></thead>
+  <tbody>
+    ${itemsFactura.map(it => `<tr><td>${it.concepto}</td><td class="r">$${it.monto.toFixed(2)}</td></tr>`).join('')}
+    <tr class="tot"><td>TOTAL</td><td class="r">$${total.toFixed(2)}</td></tr>
+  </tbody>
+</table>
+<div class="firmas">
+  <div class="fbox"><div class="fline"></div><div class="flbl">Cobrador</div></div>
+  <div class="fbox"><div class="fline"></div><div class="flbl">Cliente / Recibido por</div></div>
+</div>
+<div class="ftr"><div>¡GRACIAS POR SU PAGO PUNTUAL!</div>
+<div style="margin-top:3px;font-style:italic">Comprobante interno · Guarde este recibo como referencia</div>
+</div></body></html>`;
+
+    if (elAPI2?.printColor) {
+      elAPI2.printColor(html);
+    } else {
+      const w = window.open('', '_blank');
+      if (w) { w.document.write(html); w.document.close(); w.print(); }
+    }
+  }
+
   const lista    = tab === 'hoy' ? hoyLista : pendLista;
   const moraModal = modalItem && conMora ? modalItem.mora : 0;
   const montoNum  = parseFloat(montoInput.replace(',','.')) || 0;
   const multaNum  = parseFloat(multaInput.replace(',','.')) || 0;
   // ¿El monto ingresado cubre el saldo?
   const cubreSaldo = modalItem ? (montoNum >= modalItem.saldoPendiente) : false;
+
+  // Desglose capital/interés de la cuota actual (amortización)
+  const desgloseAmort = useMemo(() => {
+    if (!modalItem) return null;
+    const p = modalItem.prestamo;
+    const tabla = tablaAmortizacion(p.monto, p.plazo, p.frecuencia);
+    const fila  = tabla[modalItem.numeroCuota - 1];
+    return fila ?? null;
+  }, [modalItem]);
 
   const C = useColors();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -462,6 +767,26 @@ export default function Cobros() {
                   Cuota #{modalItem.numeroCuota}/{modalItem.prestamo.plazo} · {formatFecha(modalItem.fechaVencimiento)}
                   {modalItem.diasAtraso > 0 && ` · ${modalItem.diasAtraso} días atraso`}
                 </Text>
+
+                {/* Desglose capital / interés */}
+                {desgloseAmort && (
+                  <View style={s.desgloseBox}>
+                    <Text style={s.desgloseTitle}>DISTRIBUCIÓN DE ESTA CUOTA</Text>
+                    <View style={s.desgloseRow}>
+                      <Text style={s.desgloseLabel}>💰 Abono a Capital</Text>
+                      <Text style={[s.desgloseVal, {color:'#2e7d32'}]}>{formatMoneda(desgloseAmort.abono)}</Text>
+                    </View>
+                    <View style={s.desgloseRow}>
+                      <Text style={s.desgloseLabel}>📈 Interés del período</Text>
+                      <Text style={[s.desgloseVal, {color:'#c62828'}]}>{formatMoneda(desgloseAmort.interes)}</Text>
+                    </View>
+                    <View style={[s.desgloseRow, {borderTopWidth:1, borderTopColor:'rgba(0,0,0,0.1)', paddingTop:6, marginTop:2}]}>
+                      <Text style={[s.desgloseLabel, {fontWeight:'800'}]}>Total cuota</Text>
+                      <Text style={[s.desgloseVal, {fontWeight:'800', color:C.primaryText}]}>{formatMoneda(desgloseAmort.cuota)}</Text>
+                    </View>
+                    <Text style={s.desgloseNote}>Saldo pendiente tras este pago: {formatMoneda(Math.max(0, desgloseAmort.saldo - desgloseAmort.abono))}</Text>
+                  </View>
+                )}
 
                 {/* Info de cuota y abono previo */}
                 <View style={s.modalRow}>
@@ -600,6 +925,53 @@ export default function Cobros() {
                   <Text style={s.modalTotVal}>{formatMoneda(montoNum + moraModal + multaNum)}</Text>
                 </View>
 
+                {/* ── CARGOS ADMIN DISTRIBUIDOS (por cuota) ── */}
+                {cargosAdmin.length > 0 && (
+                  <View style={{ borderWidth:1.5, borderColor:'#1565c0', borderRadius:10,
+                    padding:12, marginBottom:14, backgroundColor:C.isDark?'rgba(21,101,192,0.08)':'#e8f0fe' }}>
+                    <Text style={{ fontSize:11, fontWeight:'800', color:'#1565c0', letterSpacing:0.5,
+                      textTransform:'uppercase', marginBottom:6 }}>
+                      📊 Cargo Admin — Cuota de hoy
+                    </Text>
+                    {cargosAdmin.map((c, i) => (
+                      <View key={i} style={{ marginBottom:6 }}>
+                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
+                          <Text style={{ fontSize:12, color:C.text, flex:1 }} numberOfLines={1}>
+                            {c.concepto}
+                          </Text>
+                          <Text style={{ fontSize:15, fontWeight:'800', color:'#1565c0' }}>
+                            {formatMoneda(c.monto_por_cuota)}
+                          </Text>
+                        </View>
+                        <Text style={{ fontSize:10, color:C.textSec, marginTop:2 }}>
+                          Cuota {c.cuotas_cobradas + 1} de {c.cuotas_plan}
+                          {' · '}Cobrado: {formatMoneda(c.monto_por_cuota * c.cuotas_cobradas)}
+                          {' · '}Pendiente: {formatMoneda(c.monto_por_cuota * (c.cuotas_plan - c.cuotas_cobradas))}
+                        </Text>
+                      </View>
+                    ))}
+                    <View style={{ flexDirection:'row', justifyContent:'space-between',
+                      borderTopWidth:1, borderTopColor:'#1565c0', marginTop:4, paddingTop:8 }}>
+                      <Text style={{ fontSize:13, fontWeight:'800', color:'#0d47a1' }}>
+                        COBRAR HOY (admin)
+                      </Text>
+                      <Text style={{ fontSize:16, fontWeight:'900', color:'#0d47a1' }}>
+                        {formatMoneda(cargosAdmin.reduce((a,c)=>a+c.monto_por_cuota,0))}
+                      </Text>
+                    </View>
+                    <Button mode="contained" icon="receipt" loading={cobrandoAdmin}
+                      disabled={cobrandoAdmin}
+                      onPress={cobrarAdmin}
+                      style={{ marginTop:10, backgroundColor:'#1565c0' }}
+                      labelStyle={{ fontSize:12 }}>
+                      Cobrar + Factura Admin Separada
+                    </Button>
+                    <Text style={{ fontSize:10, color:'#888', marginTop:4, textAlign:'center', fontStyle:'italic' }}>
+                      Factura de administración independiente de la cuota del préstamo
+                    </Text>
+                  </View>
+                )}
+
                 <View style={s.modalBtns}>
                   <Button mode="outlined" onPress={()=>setModalItem(null)} style={{flex:1}} disabled={guardando}>
                     Cancelar
@@ -613,6 +985,148 @@ export default function Cobros() {
               </>
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* ── MODAL FACTURA INTERNA EDITABLE ── */}
+      <Modal visible={modalFactura} transparent animationType="fade" onRequestClose={()=>setModalFactura(false)}>
+        <View style={s.overlay} pointerEvents="box-none">
+          <ScrollView contentContainerStyle={{flexGrow:1,justifyContent:'center',padding:0}}
+            keyboardShouldPersistTaps="always">
+            <View style={[s.modalBox,{maxHeight:'92%'}]}>
+              <Text style={[s.modalTit,{fontSize:17,marginBottom:2}]}>🧾 Factura para el Cliente</Text>
+              <Text style={{fontSize:11,color:C.textSec,marginBottom:10}}>
+                {ultimoPago?.cliente?.nombre?.toUpperCase()}
+              </Text>
+
+              {/* DTE guardado en cola */}
+              {dteGuardado ? (
+                <View style={{backgroundColor:C.isDark?'#0d1f0d':'#e8f5e9',borderRadius:8,
+                  padding:10,marginBottom:12,flexDirection:'row',alignItems:'center',gap:8}}>
+                  <Text style={{fontSize:14}}>✅</Text>
+                  <View style={{flex:1}}>
+                    <Text style={{color:'#2e7d32',fontSize:12,fontWeight:'700'}}>DTE guardado en cola</Text>
+                    <Text style={{color:'#388e3c',fontSize:10,marginTop:2}} numberOfLines={1}>{dteGuardado}</Text>
+                  </View>
+                </View>
+              ) : elAPI2 ? (
+                <View style={{backgroundColor:C.isDark?'#1a1000':'#fff8e1',borderRadius:8,
+                  padding:10,marginBottom:12}}>
+                  <Text style={{color:'#e65100',fontSize:11}}>⚠️ No se pudo generar DTE (verifique configuración)</Text>
+                </View>
+              ) : null}
+
+              {/* ── Líneas de la factura ── */}
+              <Text style={{fontSize:10,fontWeight:'700',color:C.textSec,letterSpacing:0.6,marginBottom:6}}>
+                CONCEPTOS
+              </Text>
+
+              {itemsFactura.map((item, i) => (
+                <View key={i} style={{flexDirection:'row',alignItems:'center',marginBottom:6,gap:4}}>
+                  {/* Concepto */}
+                  {Platform.OS === 'web'
+                    ? <input
+                        type="text"
+                        value={item.concepto}
+                        onChange={e => {
+                          const arr = [...itemsFactura];
+                          arr[i] = {...arr[i], concepto:(e.target as any).value};
+                          setItemsFactura(arr);
+                        }}
+                        style={{flex:1,fontSize:12,padding:'5px 8px',border:'1px solid #ccc',
+                          borderRadius:6,background:'transparent',color:C.text,minWidth:0} as any}
+                      />
+                    : <TextInput value={item.concepto}
+                        onChangeText={v=>{const a=[...itemsFactura];a[i]={...a[i],concepto:v};setItemsFactura(a);}}
+                        mode="flat" dense style={{flex:1,backgroundColor:'transparent',height:36}}/>
+                  }
+                  {/* Monto */}
+                  {Platform.OS === 'web'
+                    ? <View style={{flexDirection:'row',alignItems:'center',borderWidth:1,
+                        borderColor:C.border,borderRadius:6,paddingHorizontal:6,paddingVertical:4}}>
+                        <Text style={{color:C.textSec,fontSize:11}}>$</Text>
+                        <input
+                          type="text"
+                          value={String(item.monto)}
+                          onChange={e=>{
+                            const arr=[...itemsFactura];
+                            arr[i]={...arr[i],monto:parseFloat((e.target as any).value)||0};
+                            setItemsFactura(arr);
+                          }}
+                          style={{width:54,fontSize:12,fontWeight:'700',border:'none',outline:'none',
+                            background:'transparent',color:C.text,textAlign:'right'} as any}
+                        />
+                      </View>
+                    : <TextInput value={String(item.monto)}
+                        onChangeText={v=>{const a=[...itemsFactura];a[i]={...a[i],monto:parseFloat(v)||0};setItemsFactura(a);}}
+                        mode="flat" dense keyboardType="decimal-pad"
+                        style={{width:70,backgroundColor:'transparent'}}/>
+                  }
+                  {/* Eliminar */}
+                  <TouchableOpacity onPress={()=>setItemsFactura(prev=>prev.filter((_,j)=>j!==i))}
+                    style={{padding:4}}>
+                    <Text style={{color:C.danger,fontSize:16,fontWeight:'700'}}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {/* Agregar concepto nuevo */}
+              <View style={{flexDirection:'row',gap:4,marginTop:4,marginBottom:10,alignItems:'center'}}>
+                {Platform.OS === 'web'
+                  ? <input
+                      type="text"
+                      value={nuevoConcepto}
+                      onChange={e=>setNuevoConcepto((e.target as any).value)}
+                      placeholder="Ej: Gasto de visita, Papelería..."
+                      style={{flex:1,fontSize:12,padding:'6px 8px',border:'1px dashed #ccc',
+                        borderRadius:6,background:'transparent',color:C.text} as any}
+                    />
+                  : <TextInput value={nuevoConcepto} onChangeText={setNuevoConcepto}
+                      mode="outlined" dense placeholder="Nuevo concepto..." style={{flex:1,height:36}}/>
+                }
+                {Platform.OS === 'web'
+                  ? <input
+                      type="text"
+                      value={nuevoMonto}
+                      onChange={e=>setNuevoMonto((e.target as any).value.replace(/[^0-9.]/g,''))}
+                      placeholder="0.00"
+                      style={{width:62,fontSize:12,padding:'6px 6px',border:'1px dashed #ccc',
+                        borderRadius:6,background:'transparent',color:C.text,textAlign:'right'} as any}
+                    />
+                  : <TextInput value={nuevoMonto}
+                      onChangeText={v=>setNuevoMonto(v.replace(/[^0-9.]/g,''))}
+                      mode="outlined" dense keyboardType="decimal-pad"
+                      style={{width:66,height:36}} placeholder="0.00"/>
+                }
+                <TouchableOpacity
+                  onPress={()=>{
+                    if (!nuevoConcepto.trim()) return;
+                    setItemsFactura(prev=>[...prev,{concepto:nuevoConcepto,monto:parseFloat(nuevoMonto)||0}]);
+                    setNuevoConcepto('');setNuevoMonto('');
+                  }}
+                  style={{backgroundColor:C.primary,borderRadius:6,paddingHorizontal:10,paddingVertical:8}}>
+                  <Text style={{color:'#fff',fontWeight:'700',fontSize:15}}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Total */}
+              <View style={[s.modalRow,{backgroundColor:C.surfaceCard,padding:10,borderRadius:8,marginBottom:14}]}>
+                <Text style={s.modalTotLbl}>TOTAL FACTURA:</Text>
+                <Text style={[s.modalTotVal,{color:'#2e7d32'}]}>
+                  {formatMoneda(itemsFactura.reduce((a,b)=>a+b.monto,0))}
+                </Text>
+              </View>
+
+              {/* Botones */}
+              <Button mode="contained" icon="printer" style={{marginBottom:8,backgroundColor:'#0a2463'}}
+                onPress={imprimirFactura}>
+                Imprimir / Guardar PDF
+              </Button>
+              <Button mode="text" textColor={C.textTer} onPress={()=>setModalFactura(false)}>
+                Cerrar sin imprimir
+              </Button>
+            </View>
+          </ScrollView>
         </View>
       </Modal>
 
@@ -793,4 +1307,14 @@ const makeStyles = (C: any) => StyleSheet.create({
   modalTotLbl:  {fontSize:14, fontWeight:'700', color:C.primaryText},
   modalTotVal:  {fontSize:18, fontWeight:'800', color:C.primaryText},
   modalBtns:    {flexDirection:'row', gap:10},
+  // Desglose amortización
+  desgloseBox:  {backgroundColor: C.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                 borderRadius:10, padding:12, marginBottom:12,
+                 borderLeftWidth:3, borderLeftColor:C.primaryText},
+  desgloseTitle:{fontSize:9, fontWeight:'800', color:C.textTer, letterSpacing:0.8,
+                 textTransform:'uppercase', marginBottom:8},
+  desgloseRow:  {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5},
+  desgloseLabel:{fontSize:13, color:C.textSec},
+  desgloseVal:  {fontSize:14, fontWeight:'700'},
+  desgloseNote: {fontSize:10, color:C.textTer, marginTop:6, fontStyle:'italic'},
 });

@@ -18,14 +18,17 @@ const NAV = [
   { icon:'file-chart-outline',     label:'Reportes',         path:'/reportes'    },
   { icon:'chart-bar',              label:'Reporte Diario',   path:'/reportediario'},
   { icon:'receipt',                label:'Facturas',         path:'/facturas'    },
+  { icon:'file-send-outline',      label:'Cola DTE',         path:'/dte'         },
   { icon:'file-percent-outline',   label:'Libros de IVA',    path:'/libroiva'     },
   { icon:'account-cash-outline',   label:'Planilla Sueldos', path:'/planilla'     },
   { icon:'wallet-outline',         label:'Balance Cartera',  path:'/cartera'      },
   { icon:'table-account',          label:'Cuadro Cobrador',  path:'/cuadrocobrador' },
   { icon:'trending-up',            label:'Ganancias',        path:'/ganancias'    },
 ];
+// Solo visible para admin y supervisor
 const NAV_ADMIN = [
-  { icon:'account-cog-outline',    label:'Usuarios',       path:'/usuarios'   },
+  { icon:'briefcase-outline',      label:'Administración',   path:'/administracion' },
+  { icon:'account-cog-outline',    label:'Usuarios',         path:'/usuarios'   },
 ];
 const NAV_MOBILE = [
   { icon:'cog-outline',            label:'Configuración',  path:'/configuracion' },
@@ -40,8 +43,29 @@ interface SidebarProps {
 }
 
 function Sidebar({ onClose }: SidebarProps) {
-  const { perfil, signOut, isSupervisor } = useAuth();
+  const { perfil, signOut, isSupervisor, updateNombre } = useAuth();
   const { dark, toggle, palette, setPalette } = useTheme();
+  const [editNombre, setEditNombre] = useState(false);
+  const [nombreEdit, setNombreEdit] = useState('');
+  const [guardandoNombre, setGuardandoNombre] = useState(false);
+
+  function iniciarEdicion() {
+    setNombreEdit(perfil?.nombre || '');
+    setEditNombre(true);
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        (document.querySelector('#input-nombre-usuario') as HTMLInputElement)?.focus();
+      }, 100);
+    }
+  }
+
+  async function guardarNombre() {
+    if (!nombreEdit.trim() || guardandoNombre) return;
+    setGuardandoNombre(true);
+    try { await updateNombre(nombreEdit.trim()); } catch {}
+    setGuardandoNombre(false);
+    setEditNombre(false);
+  }
   const { empresa } = useEmpresa();
   const pathname = usePathname();
   const isMobileApp = typeof window !== 'undefined' && !!(window as any).Capacitor;
@@ -109,8 +133,44 @@ function Sidebar({ onClose }: SidebarProps) {
         <View style={s.avatar}>
           <Text style={s.avatarTxt}>{(perfil?.nombre?.[0]||'A').toUpperCase()}</Text>
         </View>
-        <View style={{flex:1}}>
-          <Text style={s.userName} numberOfLines={1}>{perfil?.nombre||'Usuario'}</Text>
+        <View style={{flex:1, minWidth:0}}>
+          {editNombre ? (
+            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+              {Platform.OS === 'web'
+                ? <input
+                    id="input-nombre-usuario"
+                    value={nombreEdit}
+                    onChange={e => setNombreEdit((e.target as any).value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') guardarNombre();
+                      if (e.key === 'Escape') setEditNombre(false);
+                    }}
+                    placeholder="Tu nombre..."
+                    style={{
+                      flex: 1, fontSize: 12, fontWeight: '700', color: '#fff',
+                      background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(105,240,174,0.5)',
+                      borderRadius: 5, padding: '3px 6px', outline: 'none', width: '100%',
+                    } as any}
+                  />
+                : null
+              }
+              <TouchableOpacity onPress={guardarNombre} disabled={guardandoNombre}
+                style={{ backgroundColor:'#2e7d32', borderRadius:4, paddingHorizontal:5, paddingVertical:3 }}>
+                <Text style={{ color:'#fff', fontSize:10, fontWeight:'800' }}>
+                  {guardandoNombre ? '...' : '✓'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setEditNombre(false)}
+                style={{ borderRadius:4, paddingHorizontal:4, paddingVertical:3 }}>
+                <Text style={{ color:'rgba(255,200,200,0.8)', fontSize:10, fontWeight:'800' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={iniciarEdicion} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+              <Text style={s.userName} numberOfLines={1}>{perfil?.nombre||'Usuario'}</Text>
+              <Text style={{ fontSize:9, color:'rgba(105,240,174,0.6)' }}>✏</Text>
+            </TouchableOpacity>
+          )}
           <Text style={s.userRole}>{(perfil?.rol||'').toUpperCase()}</Text>
         </View>
       </View>
@@ -202,6 +262,8 @@ export default function AppLayout() {
       <Tabs.Screen name="reportes/index"  options={{title:'Reportes',  tabBarIcon:({color,size})=><Icon name="file-chart"   color={color} size={size}/>}}/>
       <Tabs.Screen name="reportediario/index" options={{href:null}}/>
       <Tabs.Screen name="facturas/index"      options={{href:null}}/>
+      <Tabs.Screen name="dte/index"           options={{href:null, headerTitle:'Cola DTE — Hacienda'}}/>
+      <Tabs.Screen name="configuracion/dte"   options={{href:null, headerTitle:'Configuración DTE'}}/>
       <Tabs.Screen name="imprimir/index" options={{href:null}}/>
       {isSupervisor
         ? <Tabs.Screen name="usuarios/index" options={{title:'Admin',  tabBarIcon:({color,size})=><Icon name="account-cog" color={color} size={size}/>}}/>
@@ -218,6 +280,7 @@ export default function AppLayout() {
       <Tabs.Screen name="cartera/index"        options={{href:null, headerTitle:'Balance de Cartera'}}/>
       <Tabs.Screen name="cuadrocobrador/index" options={{href:null, headerTitle:'Cuadro Cobrador'}}/>
       <Tabs.Screen name="ganancias/index"    options={{title:'Ganancias',    tabBarIcon:({color,size})=><Icon name="trending-up"           color={color} size={size}/>}}/>
+      <Tabs.Screen name="administracion/index" options={{href:null, headerTitle:'Administración'}}/>
       <Tabs.Screen name="configuracion/index" options={{href:null, headerTitle:'Configuración'}}/>
     </Tabs>
   );

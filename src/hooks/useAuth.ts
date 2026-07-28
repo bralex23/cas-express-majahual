@@ -1,6 +1,6 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import { User, signInWithEmailAndPassword, signOut as fbSignOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { Perfil } from '../types';
 
@@ -11,11 +11,13 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: boolean;
   isSupervisor: boolean;
+  updateNombre: (nombre: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType>({
   user: null, perfil: null, loading: true,
   signOut: async () => {}, isAdmin: false, isSupervisor: false,
+  updateNombre: async () => {},
 });
 
 export function useAuth() { return useContext(AuthContext); }
@@ -47,11 +49,18 @@ export function useAuthProvider(): AuthContextType {
     return () => { unsub(); clearTimeout(timeout); };
   }, []);
 
+  async function updateNombre(nombre: string) {
+    if (!user) return;
+    await updateDoc(doc(db, 'perfiles', user.uid), { nombre });
+    setPerfil(prev => prev ? { ...prev, nombre } : null);
+  }
+
   return {
     user, perfil, loading,
     signOut: () => fbSignOut(auth),
     isAdmin: perfil?.rol === 'admin',
     isSupervisor: perfil?.rol === 'admin' || perfil?.rol === 'supervisor',
+    updateNombre,
   };
 }
 

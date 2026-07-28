@@ -2,50 +2,53 @@ import { Frecuencia, CuotaCalendar, Pago } from '../types';
 
 /* ─────────────────────────────────────────────────────────────────
    MÉTODO LEGAL BCR: interés sobre saldo pendiente (amortización)
-   Tasa anual: 82.87 % (Seg. 3 — consumo sin descuento, hasta 12 SMV)
+
+   Segmento 3  — Crédito consumo sin descuento (hasta 12 SMV): 82.87%
+   Segmento V  — Microcrédito multidestino subsistencia (hasta 12 SMV): 96.88%
 
    Fórmula de anualidad:
      r     = tasa_por_período
      cuota = P × r / (1 − (1+r)^−n)
-
-   Tasas por período:
-     Diario:  r = 82.87% / 365
-     Semanal: r = 82.87% / 365 × 7
-     Mensual: r = 82.87% / 365 × 30
 ───────────────────────────────────────────────────────────────── */
-export const TASA_ANUAL_BCR = 82.87;
+export const TASA_ANUAL_BCR      = 82.87;   // Seg. 3 — consumo
+export const TASA_ANUAL_BCR_MICRO = 96.88;  // Seg. V — microempresa subsistencia
 
-function tasaPorPeriodo(freq: Frecuencia): number {
-  const diaria = TASA_ANUAL_BCR / 100 / 365;
+export const SEGMENTOS_BCR = [
+  { label: 'Seg. 3 — Consumo',       tasa: 82.87, desc: 'Crédito consumo sin descuento' },
+  { label: 'Seg. V — Microempresa',  tasa: 96.88, desc: 'Microcrédito multidestino subsistencia' },
+] as const;
+
+function tasaPorPeriodo(freq: Frecuencia, tasa: number = TASA_ANUAL_BCR): number {
+  const diaria = tasa / 100 / 365;
   if (freq === 'diario')  return diaria;
   if (freq === 'semanal') return diaria * 7;
   return diaria * 30;
 }
 
 /** Cuota fija por amortización sobre saldo pendiente (método BCR legal) */
-export function calcularCuotaAmort(monto: number, n: number, freq: Frecuencia): number {
+export function calcularCuotaAmort(monto: number, n: number, freq: Frecuencia, tasa: number = TASA_ANUAL_BCR): number {
   if (n <= 0 || monto <= 0) return 0;
-  const r = tasaPorPeriodo(freq);
+  const r = tasaPorPeriodo(freq, tasa);
   if (r === 0) return Math.round(monto / n * 100) / 100;
   const cuota = monto * r / (1 - Math.pow(1 + r, -n));
   return Math.round(cuota * 100) / 100;
 }
 
 /** Total a pagar = cuota × n  (interés viene de la amortización, no de un %) */
-export function calcularTotalAmort(monto: number, n: number, freq: Frecuencia): number {
-  return Math.round(calcularCuotaAmort(monto, n, freq) * n * 100) / 100;
+export function calcularTotalAmort(monto: number, n: number, freq: Frecuencia, tasa: number = TASA_ANUAL_BCR): number {
+  return Math.round(calcularCuotaAmort(monto, n, freq, tasa) * n * 100) / 100;
 }
 
 /**
- * Tabla de amortización completa (igual a la que muestra el AI en pantalla).
+ * Tabla de amortización completa.
  * Devuelve un array con una entrada por cuota:
  *   { numero, saldo, cuota, interes, abono }
  */
 export function tablaAmortizacion(
-  monto: number, n: number, freq: Frecuencia
+  monto: number, n: number, freq: Frecuencia, tasa: number = TASA_ANUAL_BCR
 ): { numero: number; saldo: number; cuota: number; interes: number; abono: number }[] {
-  const r    = tasaPorPeriodo(freq);
-  const base = calcularCuotaAmort(monto, n, freq);
+  const r    = tasaPorPeriodo(freq, tasa);
+  const base = calcularCuotaAmort(monto, n, freq, tasa);
   const rows = [];
   let saldo  = monto;
 

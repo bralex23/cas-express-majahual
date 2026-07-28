@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { Text, FAB, Searchbar, Avatar, IconButton, Chip } from 'react-native-paper';
+import { View, ScrollView, StyleSheet, TouchableOpacity, Modal, Platform } from 'react-native';
+import { Text, FAB, Searchbar, Avatar, IconButton, Chip, Button, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
@@ -39,6 +39,11 @@ export default function Clientes() {
   const [soloExp, setSoloExp]     = useState(false);
   const [loading, setLoading]     = useState(true);
   const [subiendo, setSubiendo]   = useState<string | null>(null);
+
+  // ── Editar número de expediente ──
+  const [editandoExp, setEditandoExp]   = useState<Cliente | null>(null);
+  const [expVal, setExpVal]             = useState('');
+  const [guardandoExp, setGuardandoExp] = useState(false);
 
   async function load(forzar = false) {
     const cacheKey = `clientes_${perfil?.id}_${isSupervisor}`;
@@ -106,6 +111,38 @@ export default function Clientes() {
     finally { setSubiendo(null); }
   }
 
+  function abrirEditExp(cliente: Cliente, e: any) {
+    e?.stopPropagation?.();
+    setEditandoExp(cliente);
+    setExpVal(cliente.numero_expediente?.replace(/\D/g, '') || '');
+    // Forzar foco al input después de que el modal aparezca
+    if (typeof document !== 'undefined') {
+      setTimeout(() => {
+        (document.querySelector('#input-expediente') as HTMLInputElement)?.focus();
+      }, 150);
+    }
+  }
+
+  async function guardarExpediente() {
+    if (!editandoExp) return;
+    const trimmed = expVal.trim();
+    setGuardandoExp(true);
+    try {
+      await updateDoc(doc(db, col('clientes'), editandoExp.id), {
+        numero_expediente: trimmed ? `EXP-${trimmed}` : '',
+      });
+      const nuevo = trimmed ? `EXP-${trimmed}` : '';
+      setClientes(prev => prev.map(c =>
+        c.id === editandoExp.id ? { ...c, numero_expediente: nuevo } : c
+      ));
+      setFiltrado(prev => prev.map(c =>
+        c.id === editandoExp.id ? { ...c, numero_expediente: nuevo } : c
+      ));
+      setEditandoExp(null);
+    } catch (e) { console.error(e); }
+    setGuardandoExp(false);
+  }
+
   return (
     <View style={s.container}>
       <View style={{flexDirection:'row', alignItems:'center', paddingRight:4}}>
@@ -153,12 +190,21 @@ export default function Clientes() {
               </View>
               {item.ruta_id && <Text style={s.ruta}>📍 {item.ruta_id}</Text>}
             </View>
-            {item.numero_expediente ? (
-              <View style={s.expCol}>
-                <Text style={s.expLabel}>EXP</Text>
-                <Text style={s.expNum}>{item.numero_expediente.replace(/\D/g,'')}</Text>
-              </View>
-            ) : null}
+            <TouchableOpacity
+              onPress={e => abrirEditExp(item, e)}
+              style={[s.expCol, { minWidth: 42 }]}>
+              {item.numero_expediente
+                ? <>
+                    <Text style={s.expLabel}>EXP</Text>
+                    <Text style={s.expNum}>{item.numero_expediente.replace(/\D/g,'')}</Text>
+                    <Text style={{ fontSize:8, color:'#c8a951', marginTop:1 }}>✏</Text>
+                  </>
+                : <>
+                    <Text style={[s.expLabel, { color:'#ff9800' }]}>EXP</Text>
+                    <Text style={{ fontSize:9, color:'#ff9800', fontWeight:'700' }}>+</Text>
+                  </>
+              }
+            </TouchableOpacity>
             <View style={{ gap: 4, marginHorizontal: 4 }}>
               <TouchableOpacity
                 style={[s.camBtn, item.foto_url ? s.camBtnOk : s.camBtnPend]}
@@ -187,6 +233,64 @@ export default function Clientes() {
 
       <FAB icon="plus" style={s.fab} onPress={() => router.push('/(app)/clientes/nuevo')}
         label="Nuevo" color="#ffffff" />
+
+      {/* ── MODAL EDITAR EXPEDIENTE ── */}
+      <Modal visible={!!editandoExp} transparent animationType="fade"
+        onRequestClose={() => setEditandoExp(null)}>
+        <View style={s.overlay}>
+          <View style={s.expModal}>
+            <Text style={s.expModalTit}>✏ Número de Expediente</Text>
+            {editandoExp && (
+              <Text style={s.expModalSub}>{editandoExp.nombre.toUpperCase()}</Text>
+            )}
+
+            <View style={s.expInputRow}>
+              <Text style={s.expPrefix}>EXP-</Text>
+              {Platform.OS === 'web'
+                ? <input
+                    id="input-expediente"
+                    type="number"
+                    value={expVal}
+                    min={1}
+                    onChange={e => setExpVal((e.target as any).value)}
+                    onKeyDown={e => { if (e.key === 'Enter') guardarExpediente(); }}
+                    placeholder="1"
+                    style={{ flex:1, fontSize:28, fontWeight:'900', textAlign:'center',
+                      border:'none', outline:'none', background:'transparent',
+                      color:'#0a2463', width:'100%' } as any}
+                  />
+                : <Text style={{ fontSize:28, fontWeight:'900', color:'#0a2463' }}>{expVal||'—'}</Text>
+              }
+            </View>
+
+            {/* Botones rápidos +1 / -1 */}
+            <View style={{ flexDirection:'row', justifyContent:'center', gap:12, marginBottom:16 }}>
+              {[-1, +1].map(d => (
+                <TouchableOpacity key={d}
+                  onPress={() => setExpVal(v => String(Math.max(1, (parseInt(v)||0) + d)))}
+                  style={s.expStepBtn}>
+                  <Text style={{ fontSize:18, fontWeight:'900', color:'#0a2463' }}>
+                    {d > 0 ? '+1' : '−1'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={{ flexDirection:'row', gap:10 }}>
+              <Button mode="outlined" onPress={() => setEditandoExp(null)}
+                style={{ flex:1 }} disabled={guardandoExp}>
+                Cancelar
+              </Button>
+              <Button mode="contained" onPress={guardarExpediente}
+                loading={guardandoExp} disabled={guardandoExp || !expVal.trim()}
+                style={{ flex:1, backgroundColor:'#0a2463' }}
+                icon="check">
+                Guardar
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -250,4 +354,22 @@ const makeStyles = (C: any) => StyleSheet.create({
   empty:  {alignItems:'center',padding:40},
   emptyTxt:{color:C.textMuted,fontSize:15},
   fab:    {position:'absolute',right:16,bottom:16,backgroundColor:C.primary},
+
+  // Modal expediente
+  overlay:       { flex:1, backgroundColor:'rgba(0,0,0,0.55)', justifyContent:'center',
+                   alignItems:'center', padding:24 },
+  expModal:      { width:'100%', maxWidth:360, borderRadius:18, padding:24,
+                   backgroundColor: C.isDark?'rgba(15,25,65,0.97)':'#fff',
+                   shadowColor:'#000', shadowOpacity:0.3, shadowRadius:20,
+                   elevation:10 },
+  expModalTit:   { fontSize:16, fontWeight:'800', color:C.primaryText, marginBottom:4 },
+  expModalSub:   { fontSize:12, color:C.textSec, marginBottom:16 },
+  expInputRow:   { flexDirection:'row', alignItems:'center', justifyContent:'center',
+                   backgroundColor:C.isDark?'rgba(255,255,255,0.06)':'#f0f4ff',
+                   borderRadius:12, paddingHorizontal:16, paddingVertical:12,
+                   marginBottom:14, borderWidth:2, borderColor:'#0a2463' },
+  expPrefix:     { fontSize:20, fontWeight:'900', color:'#0a2463', marginRight:4 },
+  expStepBtn:    { width:60, height:44, justifyContent:'center', alignItems:'center',
+                   borderRadius:10, borderWidth:2, borderColor:'#0a2463',
+                   backgroundColor:C.isDark?'rgba(10,36,99,0.2)':'#e8f0fe' },
 });
