@@ -411,7 +411,7 @@ export default function Contabilidad() {
 
       {/* ── Modal agregar gasto ── */}
       <Modal visible={modal} transparent animationType="fade">
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Registrar Gasto</Text>
 

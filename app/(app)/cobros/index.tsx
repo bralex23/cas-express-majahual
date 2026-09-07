@@ -756,7 +756,7 @@ ${dteGuardado ? `<div class="dte-badge">🏛️ DTE en cola: ${dteGuardado}</div
 
       {/* ── MODAL COBRO ── */}
       <Modal visible={!!modalItem} transparent animationType="fade" onRequestClose={()=>setModalItem(null)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Registrar Cobro</Text>
 
@@ -990,7 +990,7 @@ ${dteGuardado ? `<div class="dte-badge">🏛️ DTE en cola: ${dteGuardado}</div
 
       {/* ── MODAL FACTURA INTERNA EDITABLE ── */}
       <Modal visible={modalFactura} transparent animationType="fade" onRequestClose={()=>setModalFactura(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <ScrollView contentContainerStyle={{flexGrow:1,justifyContent:'center',padding:0}}
             keyboardShouldPersistTaps="always">
             <View style={[s.modalBox,{maxHeight:'92%'}]}>
@@ -1132,7 +1132,7 @@ ${dteGuardado ? `<div class="dte-badge">🏛️ DTE en cola: ${dteGuardado}</div
 
       {/* ── MODAL MULTA SUELTA ── */}
       <Modal visible={modalMulta} transparent animationType="fade" onRequestClose={()=>setModalMulta(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={[s.modalBox,{maxHeight:'90%'}]}>
             <Text style={s.modalTit}>⚠️ Registrar Multa</Text>
 

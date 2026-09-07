@@ -119,28 +119,41 @@ export default function DetallePrestamo() {
   const { col } = useEmpresa();
 
   async function cargar() {
-    const pSnap = await getDoc(doc(db, col('prestamos'),id));
-    if (!pSnap.exists()) { router.push('/prestamos'); return; }
-    const p = { id: pSnap.id, ...pSnap.data() } as Prestamo;
-    const cSnap = await getDoc(doc(db, col('clientes'),p.cliente_id));
-    if (cSnap.exists()) p.cliente = { id: cSnap.id, ...cSnap.data() } as any;
-    const pagosSnap = await getDocs(collection(db, col('prestamos'), id, 'pagos'));
-    const pgs = pagosSnap.docs.map(d => ({ id: d.id, ...d.data() } as Pago));
+    try {
+      const pSnap = await getDoc(doc(db, col('prestamos'),id));
+      if (!pSnap.exists()) { router.push('/prestamos'); return; }
+      const rawData = pSnap.data() || {};
+      const p = {
+        ...rawData,
+        id: pSnap.id,
+        frecuencia: rawData.frecuencia || 'semanal',
+        estado:     rawData.estado     || 'activo',
+      } as Prestamo;
+      const cSnap = await getDoc(doc(db, col('clientes'),p.cliente_id));
+      if (cSnap.exists()) p.cliente = { id: cSnap.id, ...cSnap.data() } as any;
+      const pagosSnap = await getDocs(collection(db, col('prestamos'), id, 'pagos'));
+      const pgs = pagosSnap.docs.map(d => ({ id: d.id, ...d.data() } as Pago));
 
-    // Calcular total abonado por cuota
-    const mapa = new Map<number,number>();
-    pgs.forEach(pg => {
-      const n = pg.numero_cuota;
-      mapa.set(n, (mapa.get(n) || 0) + (pg.monto_pagado || 0));
-    });
-    setPagadoXCuota(mapa);
+      // Calcular total abonado por cuota
+      const mapa = new Map<number,number>();
+      pgs.forEach(pg => {
+        const n = pg.numero_cuota;
+        mapa.set(n, (mapa.get(n) || 0) + (pg.monto_pagado || 0));
+      });
+      setPagadoXCuota(mapa);
 
-    // Para generarCalendario, pasar solo pagos de cuotas completamente pagadas
-    const pgsCompletos = pgs.filter(pg => (mapa.get(pg.numero_cuota) || 0) >= p.cuota);
+      // Para generarCalendario, pasar solo pagos de cuotas completamente pagadas
+      const pgsCompletos = pgs.filter(pg => (mapa.get(pg.numero_cuota) || 0) >= p.cuota);
 
-    setPrestamo(p); setPagos(pgs);
-    setCal(generarCalendario(p.plazo, p.cuota, p.frecuencia, p.fecha_inicio, pgsCompletos, p.fecha_fin));
-    setLoading(false);
+      setPrestamo(p); setPagos(pgs);
+      if (p.fecha_inicio) {
+        setCal(generarCalendario(p.plazo, p.cuota, p.frecuencia, p.fecha_inicio, pgsCompletos, p.fecha_fin || ''));
+      }
+      setLoading(false);
+    } catch (e) {
+      console.error('Error cargando préstamo:', e);
+      setLoading(false);
+    }
   }
 
   function generarContratoConPersona(nombre: string) {
@@ -148,7 +161,7 @@ export default function DetallePrestamo() {
     return (async () => {
       setPdfLoad(true);
       try { const uri = await generarPDFContrato(prestamo, nombre); await compartir(uri); }
-      catch(e) {}
+      catch(e) { console.error('PDF error:', e); }
       setPdfLoad(false);
     })();
   }
@@ -287,7 +300,7 @@ export default function DetallePrestamo() {
     if (!prestamo) return;
     setPdfLoad(true);
     try { const uri = await generarPDFPrestamo(prestamo, cal); await compartir(uri); }
-    catch(e) {}
+    catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
   function generarContrato() {
@@ -300,35 +313,35 @@ export default function DetallePrestamo() {
     try {
       const uri = await generarPDFSolicitud(prestamo.cliente as any, prestamo.cliente.numero_expediente || '');
       await compartir(uri);
-    } catch(e) {}
+    } catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
   async function generarFicha() {
     if (!prestamo) return;
     setPdfLoad(true);
     try { const uri = await generarPDFFicha([prestamo]); await compartir(uri); }
-    catch(e) {}
+    catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
   async function imprimirDUI() {
     if (!prestamo?.cliente) return;
     setPdfLoad(true);
     try { await generarPDFCopiaDUI(prestamo.cliente as any); }
-    catch(e) {}
+    catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
   async function imprimirRecibo() {
     if (!prestamo?.cliente) return;
     setPdfLoad(true);
     try { await generarPDFReciboLuz(prestamo.cliente as any); }
-    catch(e) {}
+    catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
   async function imprimirCancelado() {
     if (!prestamo) return;
     setPdfLoad(true);
     try { await generarPDFCancelado(prestamo, cal); }
-    catch(e) {}
+    catch(e) { console.error('PDF error:', e); }
     setPdfLoad(false);
   }
 
@@ -455,7 +468,7 @@ export default function DetallePrestamo() {
           </View>
           <View style={s.statsRow}>
             <StatBox label="Cuota"      valor={formatMoneda(prestamo.cuota)} color={C.primaryText}/>
-            <StatBox label="Frecuencia" valor={prestamo.frecuencia.toUpperCase()} />
+            <StatBox label="Frecuencia" valor={(prestamo.frecuencia || 'semanal').toUpperCase()} />
             <StatBox label="Plazo"      valor={`${prestamo.plazo} cuotas`}        />
           </View>
           <Divider style={{ marginVertical: 10 }}/>
@@ -672,7 +685,7 @@ export default function DetallePrestamo() {
 
       {/* MODAL: EDITAR PRÉSTAMO */}
       <Modal visible={modalEditar} transparent animationType="slide" onRequestClose={()=>setModalEditar(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <ScrollView style={s.modalScroll} contentContainerStyle={s.modalScrollContent}
             keyboardShouldPersistTaps="always">
             <Text style={s.modalTit}>✏️ Editar Préstamo</Text>
@@ -790,7 +803,7 @@ export default function DetallePrestamo() {
 
       {/* MODAL: BORRAR */}
       <Modal visible={modalBorrar} transparent animationType="fade" onRequestClose={()=>setModalBorrar(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={[s.modalTit,{color:'#c62828'}]}>⚠️ Eliminar Préstamo</Text>
             <Text style={{color:'#555',marginBottom:20}}>
@@ -824,7 +837,7 @@ export default function DetallePrestamo() {
 
       {/* MODAL: REGISTRAR PAGO */}
       <Modal visible={modalPago} transparent animationType="fade" onRequestClose={()=>setModalPago(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Registrar Cobro — Cuota #{cuotaSel?.numero}</Text>
 

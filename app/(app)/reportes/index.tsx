@@ -795,7 +795,7 @@ export default function Reportes() {
 
       {/* Modal Reporte Diario */}
       <Modal visible={modalReporte} transparent animationType="fade" onRequestClose={()=>setModalReporte(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>📊 Reporte Diario por Ruta</Text>
             <Text style={{color:C.textSec,fontSize:12,marginBottom:14}}>

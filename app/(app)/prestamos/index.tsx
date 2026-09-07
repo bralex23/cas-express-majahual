@@ -126,13 +126,13 @@ export default function Prestamos() {
                   <Text style={s.clienteNom}>{(cli?.nombre || '—').toUpperCase()}</Text>
                   {cli?.expediente ? <Text style={s.expTxt}>Exp: {cli.expediente}</Text> : null}
                 </View>
-                <View style={[s.badge,{ backgroundColor:(BADGE_COLOR[item.estado]||'#666')+'22' }]}>
-                  <Text style={[s.badgeTxt,{color:BADGE_COLOR[item.estado]||'#666'}]}>{item.estado.toUpperCase()}</Text>
+                <View style={[s.badge,{ backgroundColor:(BADGE_COLOR[item.estado||'activo']||'#666')+'22' }]}>
+                  <Text style={[s.badgeTxt,{color:BADGE_COLOR[item.estado||'activo']||'#666'}]}>{(item.estado||'activo').toUpperCase()}</Text>
                 </View>
               </View>
               <Text style={s.monto}>{formatMoneda(item.monto)}</Text>
-              <Text style={s.sub}>Cuota: {formatMoneda(item.cuota)} {item.frecuencia} · {item.plazo} cuotas</Text>
-              <Text style={s.sub}>Total: {formatMoneda(item.monto_total)} · Interés: {item.interes}%</Text>
+              <Text style={s.sub}>Cuota: {formatMoneda(item.cuota||0)} {item.frecuencia||'semanal'} · {item.plazo||0} cuotas</Text>
+              <Text style={s.sub}>Total: {formatMoneda(item.monto_total||0)} · Interés: {item.interes||0}%</Text>
               <Text style={s.fecha}>{formatFecha(item.fecha_inicio)} → {formatFecha(item.fecha_fin)}</Text>
             </TouchableOpacity>
             </StaggerItem>

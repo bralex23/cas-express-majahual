@@ -5,7 +5,7 @@ import React from 'react';
 /* ══════════════════════════════════════════════════════════════
    PALETAS DE COLOR
    ══════════════════════════════════════════════════════════════ */
-export type PaletteId = 'navy' | 'rojo' | 'morado' | 'verde' | 'rosa' | 'negro';
+export type PaletteId = 'navy' | 'rojo' | 'morado' | 'verde' | 'rosa' | 'negro' | 'azul';
 
 export interface Palette {
   id: PaletteId;
@@ -18,6 +18,7 @@ export interface Palette {
 }
 
 export const PALETTES: Record<PaletteId, Palette> = {
+  azul:   { id:'azul',   name:'Azul',   primary:'#005f99', primaryDarkText:'#82cfff', bgDark:'#030d18', bgLight:'#dbeeff', bgLightGrad:'#edf5ff' },
   navy:   { id:'navy',   name:'Navy',   primary:'#0a2463', primaryDarkText:'#7aadff', bgDark:'#070c1e', bgLight:'#b8ccf0', bgLightGrad:'#ccdaff' },
   rojo:   { id:'rojo',   name:'Rojo',   primary:'#8b1515', primaryDarkText:'#ff8a80', bgDark:'#1c0505', bgLight:'#f5d0d0', bgLightGrad:'#ffcccc' },
   morado: { id:'morado', name:'Morado', primary:'#5b0080', primaryDarkText:'#e040fb', bgDark:'#160820', bgLight:'#e8d5f8', bgLightGrad:'#f0e0ff' },
@@ -134,8 +135,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [palette, setPaletteState] = useState<PaletteId>(() => {
     try {
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem(PALETTE_KEY) : null;
-      return (saved && saved in PALETTES) ? (saved as PaletteId) : 'verde';  // default verde para Majahual
-    } catch { return 'verde'; }
+      return (saved && saved in PALETTES) ? (saved as PaletteId) : 'azul';  // default azul (Bankio) para Majahual
+    } catch { return 'azul'; }
   });
 
   function toggle() {
@@ -190,12 +191,10 @@ export function glassStyle(isDarkOrC: boolean | { isDark: boolean; glassTint?: s
     };
   }
   return {
-    backgroundColor: 'rgba(255,255,255,0.70)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.72)',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.90)',
+    borderColor: 'rgba(0,0,0,0.07)',
+    boxShadow: '0 2px 18px rgba(0,60,120,0.09), 0 1px 4px rgba(0,0,0,0.05)',
   };
 }
 
@@ -208,7 +207,7 @@ export function glassBgStyle(isDarkOrC: boolean | { isDark: boolean; bg?: string
     backgroundColor: bgBase,
     backgroundImage: isDark
       ? `linear-gradient(145deg,${bgBase} 0%,${bgBase}cc 55%,${bgBase} 100%)`
-      : `linear-gradient(145deg,${bgBase} 0%,${bgAlt} 45%,${bgBase}ee 100%)`,
+      : `linear-gradient(160deg,${bgBase} 0%,${bgAlt} 60%,#ffffff 100%)`,
   };
 }
 

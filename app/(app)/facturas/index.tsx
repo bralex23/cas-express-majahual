@@ -293,7 +293,7 @@ export default function Facturas() {
 
       {/* ── Modal nueva factura ─────────────────────────────────────── */}
       <Modal visible={modal} transparent animationType="fade" onRequestClose={() => setModal(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <ScrollView style={s.modalScroll} contentContainerStyle={s.modalContent}
             keyboardShouldPersistTaps="always">
             <Text style={s.modalTit}>{editandoId ? '✏️ Editar Factura' : '🧾 Nueva Factura'}</Text>

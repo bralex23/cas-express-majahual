@@ -610,7 +610,7 @@ export default function DetalleCliente() {
 
       {/* Modal agregar garantía */}
       <Modal visible={modalGarantia} transparent animationType="slide" onRequestClose={() => setModalGarantia(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={[s.modalTit, { color: C.primaryText }]}>🛡️ Nueva Garantía</Text>
 
@@ -681,7 +681,7 @@ export default function DetalleCliente() {
 
       {/* Modal confirmar borrado */}
       <Modal visible={modalBorrar} transparent animationType="fade" onRequestClose={()=>setModalBorrar(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>⚠️ Eliminar Cliente</Text>
             <Text style={{color:'#555',marginBottom:6}}>

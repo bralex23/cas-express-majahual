@@ -165,7 +165,7 @@ function _imprimirHTML(html: string): Promise<string> {
     const elAPI = (window as any).electronAPI;
     // Sin CMY → PDF en Acrobat/Edge con vista previa completa
     if (elAPI?.printPreview && !_modoCMY) {
-      elAPI.printPreview(html).then(() => resolve(''));
+      elAPI.printPreview(html).then(() => resolve('')).catch(() => resolve(''));
       return;
     }
     // Con CMY en Electron → ventana visible con vista previa + botón que fuerza color:true
@@ -361,11 +361,12 @@ export async function generarPDFPagare(prestamo: any) {
     .titulo{text-align:center;font-size:18px;font-weight:900;letter-spacing:2px;margin-bottom:4px}
     .subtitulo{text-align:center;font-size:14px;font-weight:700;margin-bottom:24px}
     .cuerpo{margin-bottom:20px}
-    .lugar{margin-bottom:32px}
-    .firmas{margin-top:12px}
-    .firma-linea{border-bottom:1.5px solid #333;min-width:280px;display:inline-block;margin-bottom:2px}
+    .lugar{margin-bottom:28px}
+    .firma-linea{border-bottom:1.5px solid #333;min-width:260px;display:inline-block;margin-bottom:2px}
     .campo{font-weight:bold;text-decoration:underline}
     .fila-firma{margin-bottom:8px;font-size:13px}
+    .huella-box{border:1.5px solid #333;width:110px;height:88px;display:inline-flex;
+      flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:5px}
     b{font-weight:900}
   </style></head><body>
 
@@ -373,13 +374,14 @@ export async function generarPDFPagare(prestamo: any) {
   <div class="subtitulo">"SIN PROTESTO"</div>
 
   <div class="cuerpo">
-    Por este <b>PAGARÉ, SIN PROTESTO</b>, me obligo a pagar, a la orden del señor:
+    Por este <b>PAGARÉ, SIN PROTESTO</b>, yo
     <span class="campo">&nbsp;${nombre}&nbsp;</span>,
     quien es de <span class="campo">&nbsp;${edad}&nbsp;</span> años de edad,
     <span class="campo">&nbsp;${profesion}&nbsp;</span>,
     del domicilio del <span class="campo">&nbsp;${domicilio}&nbsp;</span>,
     portador de su Documento Único de Identidad homologado con el Número de
-    Identificación Tributaria <span class="campo">&nbsp;${nit}&nbsp;</span>,
+    Identificación Tributaria <span class="campo">&nbsp;${dui}&nbsp;</span>,
+    me obligo a pagar, a la orden de <b>SOLUCIONES FINANCIERAS CAS EXPRESS</b>,
     la suma de <b>${montoStr} (${montoFmt})</b>;
     sin interés, para el plazo de <b>${plazoStr}</b>,
     siendo pagadera en una sola cuota de
@@ -393,7 +395,7 @@ export async function generarPDFPagare(prestamo: any) {
     de acción judicial renuncio al derecho de apelar del decreto de embargo,
     de la sentencia de remate y de otra providencia apelable, que se dictare
     en el juicio ejecutivo o en sus incidencias, siendo a mi cargo cualquier
-    gasto que el señor <span class="campo">&nbsp;${nombre}&nbsp;</span> hiciere
+    gasto que <b>SOLUCIONES FINANCIERAS CAS EXPRESS</b> hiciere
     en el cobro de este pagaré, inclusive los llamados personales y aun cuando
     por regla general no hubiere condenación en costas y lo faculto, para que
     de ser necesario designe la persona depositaria de los bienes que se embarguen,
@@ -405,16 +407,26 @@ export async function generarPDFPagare(prestamo: any) {
     Departamento de La Libertad, a los <b>${firmaStr}</b>.
   </div>
 
-  <div class="firmas">
-    <div class="fila-firma">
-      <b>FIRMA:</b>&nbsp;&nbsp;<span class="firma-linea">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-    </div>
-    <div class="fila-firma"><b>DEUDOR:</b> <span class="campo">&nbsp;${nombre}&nbsp;</span></div>
-    <div class="fila-firma"><b>EDAD:</b> <span class="campo">&nbsp;${edad}&nbsp;</span> años de edad.</div>
-    <div class="fila-firma"><b>OFICIO O PROFESION:</b> <span class="campo">&nbsp;${profesion}&nbsp;</span>.</div>
-    <div class="fila-firma"><b>DOMICILIO:</b> <span class="campo">&nbsp;${domicilio}&nbsp;</span>.</div>
-    <div class="fila-firma"><b>DUI, No.</b> <span class="campo">&nbsp;${dui}&nbsp;</span></div>
-  </div>
+  <table style="width:100%;border-collapse:collapse;margin-top:4px">
+    <tr>
+      <td style="width:68%;vertical-align:top;padding-right:12px">
+        <div class="fila-firma">
+          <b>FIRMA:</b>&nbsp;&nbsp;<span class="firma-linea">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        </div>
+        <div class="fila-firma"><b>DEUDOR:</b> <span class="campo">&nbsp;${nombre}&nbsp;</span>.</div>
+        <div class="fila-firma"><b>EDAD:</b> <span class="campo">&nbsp;${edad}&nbsp;</span> años de edad.</div>
+        <div class="fila-firma"><b>OFICIO O PROFESION:</b> <span class="campo">&nbsp;${profesion}&nbsp;</span>.</div>
+        <div class="fila-firma"><b>DOMICILIO:</b> <span class="campo">&nbsp;${domicilio}&nbsp;</span>.</div>
+        <div class="fila-firma"><b>DUI, No.</b> <span class="campo">&nbsp;${dui}&nbsp;</span></div>
+      </td>
+      <td style="width:32%;vertical-align:top;text-align:center;padding-top:4px">
+        <div class="huella-box">
+          <div style="font-size:9px;font-weight:700;line-height:1.3">HUELLA DACTILAR</div>
+          <div style="font-size:8px;color:#555">(Pulgar Derecho)</div>
+        </div>
+      </td>
+    </tr>
+  </table>
 
   </body></html>`;
   return imprimir(html);
@@ -512,14 +524,28 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
   const totalIntereses = Math.round((totalAPagar - prestamo.monto) * 100) / 100;
   const tabla          = tablaAmortizacion(prestamo.monto, prestamo.plazo, prestamo.frecuencia);
 
-  const tablaRows = tabla.map(r => `
+  // Calcular fecha de cada cuota (primer pago = fecha_inicio + 1 periodo)
+  const pasoDiasCuota  = esSemanal ? 7 : 1;
+  const fechaBaseContrato = prestamo.fecha_inicio
+    ? new Date(prestamo.fecha_inicio + 'T12:00:00')
+    : new Date();
+
+  const tablaRows = tabla.map(r => {
+    const fechaCuota = new Date(fechaBaseContrato);
+    fechaCuota.setDate(fechaBaseContrato.getDate() + r.numero * pasoDiasCuota);
+    const fechaCuotaStr = fechaCuota.toLocaleDateString('es-SV', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    });
+    return `
     <tr>
-      <td style="text-align:center;padding:4px 6px;border:1px solid #ddd">${r.numero}</td>
-      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd">$${r.saldo.toFixed(2)}</td>
-      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd">$${r.cuota.toFixed(2)}</td>
-      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd;color:#c62828">$${r.interes.toFixed(2)}</td>
-      <td style="text-align:right;padding:4px 6px;border:1px solid #ddd;color:#2e7d32">$${r.abono.toFixed(2)}</td>
-    </tr>`).join('');
+      <td style="text-align:center;padding:4px 5px;border:1px solid #ddd">${r.numero}</td>
+      <td style="text-align:center;padding:4px 5px;border:1px solid #ddd;font-size:11px;white-space:nowrap">${fechaCuotaStr}</td>
+      <td style="text-align:right;padding:4px 5px;border:1px solid #ddd">$${r.saldo.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 5px;border:1px solid #ddd">$${r.cuota.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 5px;border:1px solid #ddd;color:#c62828">$${r.interes.toFixed(2)}</td>
+      <td style="text-align:right;padding:4px 5px;border:1px solid #ddd;color:#2e7d32">$${r.abono.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
     ${PAGE_RESET}
@@ -626,6 +652,7 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
     <thead>
       <tr>
         <th>${colLabel}</th>
+        <th>Fecha</th>
         <th>Saldo Inicial</th>
         <th>Cuota</th>
         <th>Interés</th>
@@ -635,10 +662,10 @@ export async function generarPDFContrato(prestamo: Prestamo, cobrador?: string) 
     <tbody>${tablaRows}</tbody>
     <tfoot>
       <tr class="total-row">
-        <td colspan="2" style="text-align:center">TOTALES</td>
+        <td colspan="3" style="text-align:center">TOTALES</td>
         <td style="text-align:right">$${totalAPagar.toFixed(2)}</td>
         <td style="text-align:right;color:#c62828">$${totalIntereses.toFixed(2)}</td>
-        <td style="text-align:right;color:#2e7d32">$${prestamo.monto.toFixed(2)}</td>
+        <td style="text-align:right;color:#2e7d32">$${Number(prestamo.monto).toFixed(2)}</td>
       </tr>
     </tfoot>
   </table>

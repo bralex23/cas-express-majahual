@@ -604,7 +604,7 @@ export default function ReporteDiario() {
 
       {/* ── Modal edición ────────────────────────────────── */}
       {!!editando && (
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={[s.modalBox, { maxHeight: '90%' }]}>
             <Text style={s.modalTit}>✏️ Editar Reporte</Text>
             {editando && (
@@ -698,7 +698,7 @@ export default function ReporteDiario() {
 
       {/* ── Modal formulario ──────────────────────────────── */}
       {modalAbierto && (
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={[s.modalBox, { maxHeight: '90%' }]}>
             <Text style={s.modalTit}>📊 Reporte Diario</Text>
             <Text style={{ color: C.textSec, fontSize: 12, marginBottom: 10 }}>

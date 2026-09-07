@@ -29,7 +29,7 @@ export default function ModalPersonaEntrega({
 }: Props) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <View style={st.overlay} pointerEvents="box-none">
+      <View style={st.overlay}>
         <View style={st.box}>
           <Text style={st.tit}>{titulo}</Text>
           <Text style={st.sub}>{subtitulo}</Text>

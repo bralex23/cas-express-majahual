@@ -266,7 +266,7 @@ export default function Usuarios() {
 
       {/* ── Modal: crear usuario nuevo ── */}
       <Modal visible={modal} transparent animationType="slide" onRequestClose={()=>setModal(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Crear Usuario</Text>
 
@@ -317,7 +317,7 @@ export default function Usuarios() {
 
       {/* ── Modal: editar nombre de usuario ── */}
       <Modal visible={modalEditar} transparent animationType="slide" onRequestClose={()=>setModalEditar(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Editar Nombre</Text>
             <TextInput label="Nombre completo" value={editNombre} onChangeText={setEditNombre}
@@ -334,7 +334,7 @@ export default function Usuarios() {
 
       {/* ── Modal: crear perfil para cuenta Auth existente ── */}
       <Modal visible={modalReparar} transparent animationType="slide" onRequestClose={()=>setModalReparar(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <View style={s.modalBox}>
             <Text style={s.modalTit}>Crear Perfil para Cuenta Existente</Text>
             <Text style={s.hint}>

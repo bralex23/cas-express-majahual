@@ -1122,7 +1122,7 @@ export default function AdminScreen() {
       ════════════════════════════════════════════════ */}
       <Modal visible={modalNuevo} transparent animationType="fade"
         onRequestClose={() => setModalNuevo(false)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <ScrollView contentContainerStyle={{ flexGrow:1, justifyContent:'center', padding:20 }}
             keyboardShouldPersistTaps="always">
             <View style={s.modalBox}>

@@ -407,7 +407,7 @@ export default function ColaDTEScreen() {
 
       {/* ── MODAL DETALLE DTE ── */}
       <Modal visible={!!detalle} transparent animationType="fade" onRequestClose={() => setDetalle(null)}>
-        <View style={s.overlay} pointerEvents="box-none">
+        <View style={s.overlay}>
           <ScrollView contentContainerStyle={{ padding: 24, flexGrow: 1, justifyContent: 'center' }}>
             <View style={[s.modalBox]}>
               {detalle && (
