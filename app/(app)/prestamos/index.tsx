@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, FlatList, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Text, FAB, Searchbar, Chip, IconButton } from 'react-native-paper';
 import { router, useFocusEffect } from 'expo-router';
@@ -38,6 +38,9 @@ export default function Prestamos() {
 
   const { col } = useEmpresa();
 
+  const montadoRef = useRef(true);
+  useEffect(() => { return () => { montadoRef.current = false; }; }, []);
+
   async function load(forzar = false) {
     const cacheKey = `prestamos_${perfil?.id}`;
     if (!forzar) {
@@ -70,10 +73,11 @@ export default function Prestamos() {
       });
 
     cache.set(cacheKey, { data, cMap });
+    if (!montadoRef.current) return;
     setTodos(data); setFiltrado(data); setLoading(false);
   }
 
-  useFocusEffect(useCallback(() => { load(true); }, [col]));
+  useFocusEffect(useCallback(() => { montadoRef.current = true; load(true); }, [col]));
 
   function aplicarFiltro(b: string, e: string) {
     let f = todos;

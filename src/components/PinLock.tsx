@@ -9,6 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { isAndroidApp } from '../lib/biometric';
 
 const PIN_KEY      = 'cas_pin_hash';
 const BIO_CRED_KEY = 'cas_bio_cred';    // base64 credential ID
@@ -129,7 +130,8 @@ export function PinLock({ children }: Props) {
   const [bioLoading,   setBioLoading]   = useState(false);
   const [showBioSetup, setShowBioSetup] = useState(false); // modal tras desbloquear con PIN
 
-  const isPinEnabled = Platform.OS === 'web';
+  // PIN solo en escritorio (Electron/navegador web) — en Android se usa el sistema nativo
+  const isPinEnabled = Platform.OS === 'web' && !isAndroidApp();
 
   // ── Chequeo inicial biometría (solo móvil) ──────────────────────────────
   useEffect(() => {
@@ -270,6 +272,17 @@ export function PinLock({ children }: Props) {
       }
     }
   };
+
+  // ── Soporte de teclado físico (escritorio) ─────────────────────────────
+  useEffect(() => {
+    if (!isPinEnabled || mode === 'unlocked') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') handleDigit(e.key);
+      else if (e.key === 'Backspace') handleDigit('⌫');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, input, confirm, isPinEnabled]);
 
   // ── App desbloqueada ────────────────────────────────────────────────────
   if (mode === 'unlocked') {

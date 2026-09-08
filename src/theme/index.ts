@@ -18,7 +18,7 @@ export interface Palette {
 }
 
 export const PALETTES: Record<PaletteId, Palette> = {
-  azul:   { id:'azul',   name:'Azul',   primary:'#005f99', primaryDarkText:'#82cfff', bgDark:'#030d18', bgLight:'#dbeeff', bgLightGrad:'#edf5ff' },
+  azul:   { id:'azul',   name:'Azul',   primary:'#005f99', primaryDarkText:'#82cfff', bgDark:'#030d18', bgLight:'#d7e6fb', bgLightGrad:'#d9f5e8' },
   navy:   { id:'navy',   name:'Navy',   primary:'#0a2463', primaryDarkText:'#7aadff', bgDark:'#070c1e', bgLight:'#b8ccf0', bgLightGrad:'#ccdaff' },
   rojo:   { id:'rojo',   name:'Rojo',   primary:'#8b1515', primaryDarkText:'#ff8a80', bgDark:'#1c0505', bgLight:'#f5d0d0', bgLightGrad:'#ffcccc' },
   morado: { id:'morado', name:'Morado', primary:'#5b0080', primaryDarkText:'#e040fb', bgDark:'#160820', bgLight:'#e8d5f8', bgLightGrad:'#f0e0ff' },
@@ -211,13 +211,47 @@ export function glassBgStyle(isDarkOrC: boolean | { isDark: boolean; bg?: string
   };
 }
 
-export function glassNavyStyle(): any {
+export function glassNavyStyle(primaryHex?: string): any {
+  const base = primaryHex || '#051208';
   return {
-    backgroundColor: 'rgba(5,18,8,0.95)',
+    backgroundColor: hexToRgba(base, 0.95),
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(105,240,174,0.18)',
     boxShadow: '0 2px 20px rgba(0,0,0,0.30), inset 0 -1px 0 rgba(255,255,255,0.05)',
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   NUEVOS HELPERS DE DEGRADADO (v2)
+   ══════════════════════════════════════════════════════════════ */
+
+/** Aclara (percent > 0) u oscurece (percent < 0) un color hex */
+export function shadeHex(hex: string, percent: number): string {
+  const h = hex.replace('#', '');
+  const num = parseInt(h, 16);
+  const r = Math.min(255, Math.max(0, Math.round((num >> 16) + 255 * percent)));
+  const g = Math.min(255, Math.max(0, Math.round(((num >> 8) & 0xff) + 255 * percent)));
+  const b = Math.min(255, Math.max(0, Math.round((num & 0xff) + 255 * percent)));
+  return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+}
+
+/** Degradado diagonal del sidebar/topBar — primary → morado */
+export function topBarGradientStyle(primaryHex?: string, isDark?: boolean): any {
+  const base = primaryHex || '#0a2463';
+  const grad = isDark
+    ? `linear-gradient(175deg, ${base} 0%, #241145 140%)`
+    : `linear-gradient(175deg, ${base} 0%, #3d1275 140%)`;
+  return { backgroundColor: base, backgroundImage: grad };
+}
+
+/** Degradado sutil para botones de acción (mismo color, tono más oscuro) */
+export function actionGradientStyle(hex: string): any {
+  const darker = shadeHex(hex, -0.22);
+  return {
+    backgroundColor: hex,
+    backgroundImage: `linear-gradient(135deg, ${hex} 0%, ${darker} 100%)`,
+    boxShadow: `0 4px 14px ${hexToRgba(hex, 0.35)}`,
   };
 }

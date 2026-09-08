@@ -7,7 +7,7 @@ import { Text } from 'react-native-paper';
 import { Tabs, Redirect, router, usePathname } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/hooks/useAuth';
-import { useTheme, useColors, glassBgStyle, PALETTES, PaletteId } from '../../src/theme';
+import { useTheme, useColors, glassBgStyle, PALETTES, PaletteId, topBarGradientStyle } from '../../src/theme';
 import { useEmpresa } from '../../src/context/empresa';
 
 const NAV = [
@@ -75,9 +75,7 @@ function Sidebar({ onClose }: SidebarProps) {
     path === '/' ? pathname === '/' : pathname.includes(path.replace('/index',''));
 
   const pal = PALETTES[palette];
-  const sidebarColor = dark
-    ? `${pal.bgDark}f2`
-    : `${pal.primary}bb`;
+  const sidebarGrad = topBarGradientStyle(pal.primary, dark);
 
   const navigate = (path: string) => {
     router.push(path as any);
@@ -85,7 +83,7 @@ function Sidebar({ onClose }: SidebarProps) {
   };
 
   return (
-    <View style={[s.sidebar, { backgroundColor: sidebarColor, borderRightColor: `${pal.primary}44` } as any]}>
+    <View style={[s.sidebar, sidebarGrad as any, { borderRightColor: `${pal.primary}44` } as any]}>
       {/* Logo + botón cerrar (solo en móvil) */}
       <View style={s.logoBox}>
         <Image
@@ -297,7 +295,7 @@ export default function AppLayout() {
           transition: pageVis ? 'opacity 190ms ease-out' : 'none',
         } as any]}>
           {isMobile && (
-            <View style={[s.topBar, { backgroundColor: PALETTES[palette].primary + 'ee' } as any]}>
+            <View style={[s.topBar, topBarGradientStyle(PALETTES[palette].primary, C.isDark) as any]}>
               <TouchableOpacity onPress={() => setDrawer(true)} style={s.hamburger}>
                 <MaterialCommunityIcons name="menu" size={26} color="#fff"/>
               </TouchableOpacity>
@@ -316,7 +314,7 @@ export default function AppLayout() {
               activeOpacity={1}
               onPress={() => setDrawer(false)}
             />
-            <View style={[s.drawer, { backgroundColor: PALETTES[palette].primary + 'f8' } as any]}>
+            <View style={[s.drawer, topBarGradientStyle(PALETTES[palette].primary, C.isDark) as any]}>
               <Sidebar onClose={() => setDrawer(false)} />
             </View>
           </>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, ScrollView, StyleSheet, TouchableOpacity, Modal, Platform } from 'react-native';
 import { Text, FAB, Searchbar, Avatar, IconButton, Chip, Button, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -33,6 +33,9 @@ export default function Clientes() {
   const C        = useColors();
   const s        = useMemo(() => makeStyles(C), [C]);
 
+  const montadoRef = useRef(true);
+  useEffect(() => { return () => { montadoRef.current = false; }; }, []);
+
   const [clientes, setClientes]   = useState<Cliente[]>([]);
   const [filtrado, setFiltrado]   = useState<Cliente[]>([]);
   const [busqueda, setBusqueda]   = useState('');
@@ -61,12 +64,13 @@ export default function Clientes() {
                             return numA - numB;
                           });
     cache.set(cacheKey, data);
+    if (!montadoRef.current) return;
     setClientes(data);
     setFiltrado(data);
     setLoading(false);
   }
 
-  useFocusEffect(useCallback(() => { load(true); }, [col]));
+  useFocusEffect(useCallback(() => { montadoRef.current = true; load(true); }, [col]));
 
   function buscar(texto: string) {
     setBusqueda(texto);

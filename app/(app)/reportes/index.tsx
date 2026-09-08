@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Modal, Switch, TouchableOpacity } from 'react-native';
 import { Text, Card, Button, TextInput, Divider } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -60,12 +60,17 @@ export default function Reportes() {
   const [historial, setHistorial]       = useState<any[]>([]);
   const [verHistorial, setVerHistorial] = useState(false);
 
+  const montadoRef = useRef(true);
+  useEffect(() => { return () => { montadoRef.current = false; }; }, []);
+
   useFocusEffect(useCallback(() => {
+    montadoRef.current = true;
     async function cargarHistorial() {
       try {
         const constraints: any[] = [orderBy('fecha','desc')];
         if (!isSupervisor && perfil?.id) constraints.unshift(where('created_by','==',perfil.id));
         const snap = await getDocs(query(collection(db, col('reportes_diarios')), ...constraints));
+        if (!montadoRef.current) return;
         setHistorial(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch(e) { console.error(e); }
     }
