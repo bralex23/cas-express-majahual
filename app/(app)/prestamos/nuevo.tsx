@@ -20,10 +20,16 @@ const PLAZOS_DIARIO = [
   { dias: 40, cuotas: 40, label: '40 días' },
 ];
 const PLAZOS_SEMANAL = [
-  { dias: 21, cuotas: 3, label: '3 semanas' },
-  { dias: 28, cuotas: 4, label: '4 semanas' },
-  { dias: 42, cuotas: 6, label: '6 semanas' },
-  { dias: 56, cuotas: 8, label: '8 semanas' },
+  { dias: 21, cuotas: 3,  label: '3 semanas' },
+  { dias: 28, cuotas: 4,  label: '4 semanas' },
+  { dias: 42, cuotas: 6,  label: '6 semanas' },
+  { dias: 56, cuotas: 8,  label: '8 semanas' },
+];
+const PLAZOS_MENSUAL = [
+  { dias:  90, cuotas:  3, label: '3 meses'  },
+  { dias: 180, cuotas:  6, label: '6 meses'  },
+  { dias: 270, cuotas:  9, label: '9 meses'  },
+  { dias: 365, cuotas: 12, label: '12 meses' },
 ];
 
 export default function NuevoPrestamo() {
@@ -39,7 +45,7 @@ export default function NuevoPrestamo() {
 
   const [monto, setMonto]               = useState('');
   const [segmento, setSegmento]         = useState(SEGMENTOS_BCR[0]); // 82.87% por defecto
-  const [modalidad, setModalidad]       = useState<'diario' | 'semanal'>('diario');
+  const [modalidad, setModalidad]       = useState<'diario' | 'semanal' | 'mensual'>('diario');
   // plazoSel guarda el objeto completo del plazo seleccionado
   const [plazoSel, setPlazoSel]         = useState<{dias:number;cuotas:number;label:string}|null>(null);
   const [diaCobro, setDiaCobro]         = useState<number | null>(null);
@@ -49,7 +55,7 @@ export default function NuevoPrestamo() {
   const [error, setError]               = useState('');
   const [busqueda, setBusqueda]         = useState('');
 
-  const frecuencia: Frecuencia = modalidad; // mapeo directo
+  const frecuencia: Frecuencia = modalidad as Frecuencia; // mapeo directo
 
   /* ── Cálculos por amortización (interés sobre saldo pendiente — método BCR) ── */
   const montoN    = parseFloat(monto) || 0;
@@ -236,12 +242,16 @@ export default function NuevoPrestamo() {
         {/* Modalidad */}
         <Text style={s.label}>Modalidad de pago *</Text>
         <View style={[s.frecRow,{marginBottom:14}]}>
-          {(['diario','semanal'] as const).map(m => (
-            <TouchableOpacity key={m}
-              style={[s.frecBtn, modalidad===m && s.frecBtnActive]}
-              onPress={() => { setModalidad(m); setPlazoSel(null); setDiaCobro(null); }}>
-              <Text style={[s.frecTxt, modalidad===m && {color:'#fff'}]}>
-                {m === 'diario' ? '📅 Diario' : '📆 Semanal'}
+          {([
+            { key:'diario',   icon:'📅', label:'Diario'   },
+            { key:'semanal',  icon:'📆', label:'Semanal'  },
+            { key:'mensual',  icon:'🗓️', label:'Mensual'  },
+          ] as const).map(m => (
+            <TouchableOpacity key={m.key}
+              style={[s.frecBtn, modalidad===m.key && s.frecBtnActive]}
+              onPress={() => { setModalidad(m.key as any); setPlazoSel(null); setDiaCobro(null); }}>
+              <Text style={[s.frecTxt, modalidad===m.key && {color:'#fff'}]}>
+                {m.icon} {m.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -250,7 +260,7 @@ export default function NuevoPrestamo() {
         {/* Plazo fijo según modalidad */}
         <Text style={s.label}>Plazo *</Text>
         <View style={s.plazoRow}>
-          {(modalidad === 'diario' ? PLAZOS_DIARIO : PLAZOS_SEMANAL).map(p => {
+          {(modalidad === 'diario' ? PLAZOS_DIARIO : modalidad === 'semanal' ? PLAZOS_SEMANAL : PLAZOS_MENSUAL).map(p => {
             const pct     = ((segmento.tasa/100)*(p.dias/365)*100).toFixed(2);
             const selected = plazoSel?.dias === p.dias;
             return (
@@ -266,7 +276,7 @@ export default function NuevoPrestamo() {
           })}
         </View>
 
-        {/* Día de cobro — solo para semanal */}
+        {/* Día de cobro — semanal: día de semana · mensual: día del mes */}
         {modalidad === 'semanal' && (
           <>
             <Text style={s.label}>Día de cobro semanal</Text>
@@ -283,6 +293,27 @@ export default function NuevoPrestamo() {
                     setFechaI(nueva.toISOString().split('T')[0]);
                   }}>
                   <Text style={[s.frecTxt, diaCobro===i&&{color:'#fff'}]}>{d}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+        {modalidad === 'mensual' && (
+          <>
+            <Text style={s.label}>Día de cobro mensual (1–28)</Text>
+            <View style={[s.frecRow,{flexWrap:'wrap',gap:8}]}>
+              {[1,5,10,15,20,25,28].map(dia => (
+                <TouchableOpacity key={dia}
+                  style={[s.frecBtn, {flex:0,paddingHorizontal:14}, diaCobro===dia&&s.frecBtnActive]}
+                  onPress={() => {
+                    setDiaCobro(dia);
+                    // Ajusta fecha de inicio al próximo mes en ese día
+                    const base = new Date(fechaInicio.length===10 ? fechaInicio+'T00:00:00' : new Date());
+                    const nueva = new Date(base.getFullYear(), base.getMonth(), dia);
+                    if (nueva <= base) nueva.setMonth(nueva.getMonth() + 1);
+                    setFechaI(nueva.toISOString().split('T')[0]);
+                  }}>
+                  <Text style={[s.frecTxt, diaCobro===dia&&{color:'#fff'}]}>Día {dia}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -311,7 +342,9 @@ export default function NuevoPrestamo() {
             <Text style={s.resumenVal}>{formatMoneda(montoN)}</Text>
           </View>
           <View style={s.resumenRow}>
-            <Text style={s.resumenLbl}>Interés total ({diasN} días):</Text>
+            <Text style={s.resumenLbl}>
+              Interés total ({modalidad==='mensual' ? `${numCuotas} meses` : `${diasN} días`}):
+            </Text>
             <Text style={s.resumenVal}>{formatMoneda(interesAmt)}</Text>
           </View>
           <View style={[s.resumenRow,{borderTopWidth:1,borderTopColor:'rgba(0,0,0,0.1)',paddingTop:8,marginTop:4}]}>
@@ -333,7 +366,7 @@ export default function NuevoPrestamo() {
           </Text>
           {/* Encabezado */}
           <View style={s.tablaHead}>
-            <Text style={[s.tablaH,{flex:0.6}]}>{modalidad==='semanal'?'Sem.':'Día'}</Text>
+            <Text style={[s.tablaH,{flex:0.6}]}>{modalidad==='semanal'?'Sem.':modalidad==='mensual'?'Mes':'Día'}</Text>
             <Text style={s.tablaH}>Saldo</Text>
             <Text style={s.tablaH}>Cuota</Text>
             <Text style={s.tablaH}>Interés</Text>
@@ -369,7 +402,7 @@ export default function NuevoPrestamo() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:      {flex:1, ...w(glassBgStyle(C))},
+  container:      {flex:1, backgroundColor:C.bg},
   titulo:         {color:C.primaryText,fontWeight:'800',marginBottom:12},
   label:          {fontSize:13,color:C.textSec,fontWeight:'600',marginBottom:8},
   input:          {marginBottom:12},
@@ -380,9 +413,9 @@ const makeStyles = (C: any) => StyleSheet.create({
   bcrSub:         {fontSize:11,color: C.isDark ? '#81c784' : '#388e3c', marginTop:2},
   // Cliente
   clienteBox:     {flexDirection:'row',justifyContent:'space-between',alignItems:'center',
-                   borderRadius:12,padding:12,marginBottom:12, ...glassStyle(C)},
+                   borderRadius:12,padding:12,marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   clienteNombre:  {fontSize:15,fontWeight:'700',color:C.primaryText},
-  clienteLista:   {borderRadius:12,marginBottom:12, ...glassStyle(C)},
+  clienteLista:   {borderRadius:12,marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   clienteBusqueda:{padding:10,fontSize:14,color:C.text,borderBottomWidth:1,
                    borderBottomColor: C.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                    backgroundColor:'transparent',borderTopLeftRadius:12,borderTopRightRadius:12},
@@ -394,7 +427,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   avisoSub:       {fontSize:12,color:C.textSec,marginBottom:2},
   avisoInfo:      {fontSize:12,color:C.warning,fontWeight:'600',marginTop:6},
   // Formulario
-  formPanel:      {borderRadius:16,padding:12,marginBottom:12, ...glassStyle(C)},
+  formPanel:      {borderRadius:16,padding:12,marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   // Plazos fijos
   plazoRow:       {flexDirection:'row',gap:10,marginBottom:14,flexWrap:'wrap'},
   plazoBtn:       {flexBasis:'45%',flexGrow:1,borderWidth:2,borderColor:C.border,borderRadius:12,padding:12,alignItems:'center'},
@@ -407,7 +440,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   frecBtnActive:  {backgroundColor:C.primary,borderColor:C.primary},
   frecTxt:        {fontSize:13,color:C.textSec,fontWeight:'600'},
   // Resumen
-  resumen:        {borderRadius:12,padding:16,marginBottom:12, ...glassStyle(C)},
+  resumen:        {borderRadius:12,padding:16,marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   resumenTit:     {fontSize:13,fontWeight:'700',color:C.primaryText,marginBottom:10,textTransform:'uppercase'},
   resumenRow:     {flexDirection:'row',justifyContent:'space-between',marginBottom:6,alignItems:'center'},
   resumenLbl:     {color:C.textSec,fontSize:13,flex:1},

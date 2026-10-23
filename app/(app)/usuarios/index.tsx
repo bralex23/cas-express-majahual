@@ -401,7 +401,7 @@ export default function Usuarios() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:    {flex:1, backgroundColor:C.bg, ...w(glassBgStyle(C))},
+  container:    {flex:1, backgroundColor:C.bg},
   center:       {flex:1,justifyContent:'center',alignItems:'center'},
   listHeader:   {flexDirection:'row',justifyContent:'space-between',alignItems:'center',marginBottom:8},
   secTit:       {fontSize:12,color:C.textTer,fontWeight:'700',textTransform:'uppercase'},
@@ -409,7 +409,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   addBtnTxt:    {color:'#fff',fontWeight:'700',fontSize:13},
   repararBtn:   {flexDirection:'row',alignItems:'center',gap:6,borderWidth:1,borderColor:'#1565c0',borderRadius:8,paddingHorizontal:12,paddingVertical:7,marginBottom:12,alignSelf:'flex-start'},
   repararBtnTxt:{color:'#1565c0',fontWeight:'600',fontSize:13},
-  card:         {marginBottom:10,borderRadius:12, ...glassStyle(C)},
+  card:         {marginBottom:10,borderRadius:16, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   row:          {flexDirection:'row',alignItems:'center',gap:12},
   rolIcon:      {width:42,height:42,borderRadius:21,justifyContent:'center',alignItems:'center'},
   info:         {flex:1},

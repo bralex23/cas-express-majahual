@@ -32,12 +32,13 @@ function DesktopLogin() {
 
   return (
     <View style={[ds.root, {
-      backgroundColor: primary,
-      backgroundImage: `linear-gradient(145deg, ${primary} 0%, #0d1f3c 100%)`,
+      backgroundColor: '#003875',
+      backgroundImage: `linear-gradient(145deg, ${primary} 0%, #00316e 45%, #001535 100%)`,
     } as any]}>
       {/* manchas difuminadas de fondo */}
-      <View style={[ds.blob, ds.blobGold,  { filter: 'blur(70px)' } as any]} />
-      <View style={[ds.blob, ds.blobPrimary, { backgroundColor: hexToRgba(primary, 0.35), filter: 'blur(80px)' } as any]} />
+      <View style={[ds.blob, ds.blobCyan,  { filter: 'blur(72px)' } as any]} />
+      <View style={[ds.blob, ds.blobBlue, { filter: 'blur(90px)' } as any]} />
+      <View style={[ds.blob, ds.blobMint, { filter: 'blur(60px)' } as any]} />
 
       {/* tarjeta central */}
       <View style={ds.card as any}>
@@ -51,9 +52,10 @@ function DesktopLogin() {
         </View>
 
         <Text style={ds.empresa}>CAS Express Majahual</Text>
-        <Text style={ds.slogan}>CAS Express</Text>
+        <Text style={ds.slogan}>Soluciones Financieras</Text>
 
-        <Text style={ds.titulo}>Iniciar Sesión</Text>
+        <Text style={ds.titulo}>Bienvenido</Text>
+        <Text style={ds.subtitulo}>Ingresa tus datos para continuar</Text>
 
         {/* campo email */}
         <View style={ds.fieldWrap}>
@@ -132,14 +134,23 @@ const ds = StyleSheet.create({
     borderRadius: 999,
     opacity: 0.55,
   },
-  blobGold: {
-    width: 260, height: 260,
-    backgroundColor: '#c8a951',
-    top: -60, right: -40,
+  blobCyan: {
+    width: 280, height: 280,
+    backgroundColor: '#00bcd4',
+    opacity: 0.45,
+    top: -70, right: -50,
   },
-  blobPrimary: {
-    width: 320, height: 320,
-    bottom: -80, left: -60,
+  blobBlue: {
+    width: 340, height: 340,
+    backgroundColor: '#1565c0',
+    opacity: 0.28,
+    bottom: -90, left: -70,
+  },
+  blobMint: {
+    width: 200, height: 200,
+    backgroundColor: '#00e5ff',
+    opacity: 0.18,
+    top: '40%' as any, left: '30%' as any,
   },
   card: {
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -167,21 +178,24 @@ const ds = StyleSheet.create({
   },
   logoImg: { width: 70, height: 70 },
   empresa: { fontSize: 17, fontWeight: '700', color: '#111', marginBottom: 2 },
-  slogan:  { fontSize: 12, color: '#888', marginBottom: 20 },
-  titulo:  { fontSize: 22, fontWeight: '800', color: '#111', marginBottom: 18, alignSelf: 'flex-start' },
+  slogan:  { fontSize: 12, color: '#888', marginBottom: 18 },
+  titulo:  { fontSize: 24, fontWeight: '800', color: '#111', marginBottom: 4, alignSelf: 'flex-start' },
+  subtitulo: { fontSize: 13, color: '#888', marginBottom: 22, alignSelf: 'flex-start' },
   fieldWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f2f4f9',
+    backgroundColor: '#eef4ff',
     borderRadius: 12,
-    height: 48,
-    marginBottom: 12,
+    height: 52,
+    marginBottom: 14,
     width: '100%',
     paddingRight: 8,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,95,153,0.12)',
   },
   iconChip: {
-    width: 48, height: 48,
+    width: 52, height: 52,
     alignItems: 'center',
     justifyContent: 'center',
     borderTopLeftRadius: 12,

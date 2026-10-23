@@ -786,9 +786,9 @@ export default function ReporteDiario() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:  { flex: 1, backgroundColor:C.bg, ...w(glassBgStyle(C)) },
+  container:  { flex: 1, backgroundColor:C.bg,  },
   titulo:     { fontSize: 18, fontWeight: '800', color: C.primaryText, marginBottom: 16 },
-  card:       { marginBottom: 12, borderRadius: 12, ...glassStyle(C) },
+  card:       { marginBottom: 12, borderRadius: 16, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   secLabel:   { fontSize: 11, color: C.textSec, fontWeight: '600', marginBottom: 8, letterSpacing: 0.5 },
   iconBox:    { width: 52, height: 52, borderRadius: 12, backgroundColor: '#e6510022',
                 justifyContent: 'center', alignItems: 'center' },
@@ -801,7 +801,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   overlay:    { ...(Platform.OS === 'web' ? { position: 'fixed' as any } : { position: 'absolute' }),
                 top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000,
                 backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: 24 },
-  modalBox:   { borderRadius: 16, padding: 20, backgroundColor: C.surface,
+  modalBox:   { borderRadius: 20, padding: 20, backgroundColor: C.surface,
                 borderWidth: 1, borderColor: C.border },
   modalTit:   { fontSize: 16, fontWeight: '800', color: C.primaryText, marginBottom: 8 },
 });

@@ -206,7 +206,7 @@ export default function CuadraturaDigital() {
 
   return (
     <FadeIn delay={0} duration={250} dy={6} style={{flex:1}}>
-    <ScrollView style={{flex:1, backgroundColor: C.bg, ...w(glassBgStyle(C))}} contentContainerStyle={{padding:14}}>
+    <ScrollView style={{flex:1, backgroundColor: C.bg, }} contentContainerStyle={{padding:14}}>
 
       {/* ── ENCABEZADO ──────────────────────────────────── */}
       <Card style={s.card} elevation={0}>
@@ -382,7 +382,7 @@ function CampoInput({ label, value, onChange, C, s }: any) {
 
 const makeStyles = (C: any) => StyleSheet.create({
   center:       {flex:1,justifyContent:'center',alignItems:'center'},
-  card:         {marginBottom:12, borderRadius:14, ...glassStyle(C)},
+  card:         {marginBottom:12, borderRadius:14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   tituloRow:    {flexDirection:'row',alignItems:'center',gap:8,marginBottom:12},
   titulo:       {fontSize:18,fontWeight:'900',flex:1},
   okBadge:      {flexDirection:'row',alignItems:'center',gap:4,borderRadius:20,paddingHorizontal:8,paddingVertical:3},

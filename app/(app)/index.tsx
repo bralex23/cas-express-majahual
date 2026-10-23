@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { View, StyleSheet, Platform, ScrollView, RefreshControl, TouchableOpacity, Animated } from 'react-native';
-import { Text, Card, ActivityIndicator } from 'react-native-paper';
+import { Text, ActivityIndicator } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { collection, query, where, getDocs, getCountFromServer } from 'firebase/firestore';
 import { db } from '../../src/lib/firebase';
 import { useEmpresa } from '../../src/context/empresa';
 import { useAuth } from '../../src/hooks/useAuth';
-import { useColors, hexToRgba } from '../../src/theme';
+import { useColors, useTheme, hexToRgba } from '../../src/theme';
+import { isAndroidApp } from '../../src/lib/biometric';
 import { Prestamo } from '../../src/types';
 import { hoy, calcularVencimiento, formatMoneda, formatFecha, diasGracia } from '../../src/utils/calculos';
 import { cache } from '../../src/utils/cache';
@@ -191,7 +192,8 @@ export default function Dashboard() {
     </View>
   );
 
-  if (Platform.OS === 'web') return (
+  // WebDashboard solo en Electron/navegador desktop — Android usa MobileDashboard
+  if (Platform.OS === 'web' && !isAndroidApp()) return (
     <WebDashboard
       stats={stats} cobradoHoy={cobradoHoy} carteraTotal={carteraTotal} cobrosHoy={cobrosHoy}
       perfil={perfil} refresh={refresh} onRefresh={onRefresh}
@@ -209,143 +211,356 @@ export default function Dashboard() {
 
 /* ─── WEB ─────────────────────────────────────────────────────── */
 function WebDashboard({ stats, cobradoHoy, carteraTotal, cobrosHoy, perfil, refresh, onRefresh, cobrosPendientes, prestamosEnMora }: any) {
-  const C = useColors();
-  const w = useMemo(() => makeStylesW(C), [C]);
+  const C  = useColors();
+  const { dark } = useTheme();
+
+  // ── Paleta reactiva al tema ──
+  const BG      = dark ? '#0b1320' : '#f8fafc';
+  const CARD    = dark ? '#161f30' : '#ffffff';
+  const CARD2   = dark ? '#1e293b' : '#f8fafc';
+  const BORDER  = dark ? 'rgba(255,255,255,0.08)' : '#e2e8f0';
+  const DIVIDER = dark ? 'rgba(255,255,255,0.05)' : '#f1f5f9';
+  const TEXT    = dark ? '#f1f5f9' : '#0f172a';
+  const TEXT_S  = dark ? '#94a3b8' : '#64748b';
+  const TEXT_M  = dark ? '#475569' : '#94a3b8';
+  const SHADOW  = dark
+    ? '0 4px 16px rgba(0,0,0,0.40)'
+    : '0 2px 8px rgba(15,23,42,0.05)';
+
   return (
-    <View style={w.root}>
-      <View style={w.topBar}>
-        <View>
-          <Text style={w.pageTitle}>Dashboard</Text>
-          <Text style={w.pageDate}>{HOY_LABEL.charAt(0).toUpperCase() + HOY_LABEL.slice(1)}</Text>
-        </View>
-        <Text style={w.topUser}>{perfil?.nombre || 'Administrador'}</Text>
+    <ScrollView
+      style={{ flex:1, backgroundColor: BG }}
+      contentContainerStyle={{ padding:28, gap:20 }}
+      refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh}/>}
+    >
+      {/* ── Saludo ── */}
+      <View style={{ marginBottom:4 }}>
+        <Text style={{ fontSize:22, fontWeight:'800', color:TEXT }}>
+          Buenos días, {perfil?.nombre?.split(' ')[0] || 'Administrador'} 👋
+        </Text>
+        <Text style={{ fontSize:13, color:TEXT_S, marginTop:3 }}>
+          {HOY_LABEL.charAt(0).toUpperCase() + HOY_LABEL.slice(1)}
+        </Text>
       </View>
 
-      <ScrollView contentContainerStyle={w.body} refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh}/>}>
+      {/* ── Fila superior: Hero + 4 stats ── */}
+      <View style={{ flexDirection:'row', gap:16, alignItems:'stretch' }}>
 
-        {/* Stats row */}
-        <View style={w.statsRow}>
-          <WStat icon="account-group" color="#1565c0" rawValue={stats.clientes}  label="Clientes Activos"  index={0}/>
-          <WStat icon="bank"          color="#2e7d32" rawValue={stats.activos}   label="Préstamos Activos" index={1}/>
-          <WStat icon="cash"          color="#e65100" rawValue={cobradoHoy}      label="Cobrado Hoy"       index={2} isMoney/>
-          <WStat icon="alert-circle"  color="#c62828" rawValue={stats.mora}      label="En Mora"           index={3}/>
-          <WStat icon="briefcase"     color="#6a1b9a" rawValue={carteraTotal}    label="Cartera Total"     index={4} isMoney/>
-          <WStat icon="clock-check"   color="#00838f" rawValue={cobrosHoy}       label="Cobros Hoy"        index={5}/>
-        </View>
-
-        {/* Panels */}
-        <View style={w.panels}>
-
-          <FadeIn delay={520} style={w.panel}>
-            <View style={w.panelHeader}>
-              <MaterialCommunityIcons name="clock-alert-outline" size={18} color="#e65100"/>
-              <Text style={[w.panelTitle, {color:'#e65100'}]}>
-                Cobros Pendientes Hoy
-                {cobrosPendientes.length > 0 && <Text style={w.panelBadge}> ({cobrosPendientes.length})</Text>}
-              </Text>
+        {/* ── Hero cartera con sparkline SVG ── */}
+        <FadeIn delay={60} style={{
+          flex:2, borderRadius:24, padding:0, overflow:'hidden',
+          backgroundColor: C.primary,
+          ...(({ boxShadow:`0 10px 32px ${hexToRgba(C.primary,0.32)}, 0 2px 6px ${hexToRgba(C.primary,0.18)}` } as any)),
+        }}>
+          {/* Contenido superior */}
+          <View style={{ padding:24, paddingBottom:0 }}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:20 }}>
+              <View style={{ backgroundColor:'rgba(255,255,255,0.18)', borderRadius:12,
+                             paddingHorizontal:12, paddingVertical:5 }}>
+                <Text style={{ color:'rgba(255,255,255,0.95)', fontSize:10, fontWeight:'800', letterSpacing:0.6 }}>
+                  CARTERA ACTIVA TOTAL
+                </Text>
+              </View>
+              <View style={{ width:36, height:36, borderRadius:18, backgroundColor:'rgba(255,255,255,0.20)',
+                             justifyContent:'center', alignItems:'center' }}>
+                <MaterialCommunityIcons name="arrow-top-right" size={18} color="#fff"/>
+              </View>
             </View>
-            {cobrosPendientes.length === 0
-              ? <View style={w.panelBody}>
-                  <MaterialCommunityIcons name="check-circle-outline" size={36} color="#4caf50"/>
-                  <Text style={w.panelEmpty}>No hay cobros pendientes hoy</Text>
-                </View>
-              : <ScrollView style={{ maxHeight: 240 }}>
-                  {cobrosPendientes.map((c: CobroPendiente, i: number) => (
-                    <TouchableOpacity key={i} style={w.panelItem}
-                      onPress={() => router.push(`/(app)/prestamos/${c.prestamo_id}` as any)}>
-                      <View style={{ flex:1 }}>
-                        <Text style={w.panelItemNombre}>{c.cliente_nombre.toUpperCase()}</Text>
-                        <Text style={w.panelItemSub}>Cuota #{c.numero_cuota} · {c.frecuencia}</Text>
-                      </View>
-                      <Text style={w.panelItemMonto}>{formatMoneda(c.monto)}</Text>
-                      <MaterialCommunityIcons name="chevron-right" size={16} color="#ccc" style={{marginLeft:4}}/>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-            }
-          </FadeIn>
 
-          <FadeIn delay={580} style={w.panel}>
-            <View style={w.panelHeader}>
-              <MaterialCommunityIcons name="alert-circle-outline" size={18} color="#c62828"/>
-              <Text style={[w.panelTitle, {color:'#c62828'}]}>
-                Clientes en Mora
-                {prestamosEnMora.length > 0 && <Text style={w.panelBadge}> ({prestamosEnMora.length})</Text>}
-              </Text>
+            <AnimatedNumber
+              value={carteraTotal ?? 0}
+              formatter={(n) => formatMoneda(n)}
+              style={{ fontSize:38, fontWeight:'900', color:'#ffffff' }}
+            />
+
+            <View style={{ flexDirection:'row', gap:10, marginTop:14, marginBottom:16 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:5,
+                             backgroundColor:'rgba(255,255,255,0.18)', borderRadius:20,
+                             paddingHorizontal:12, paddingVertical:5 }}>
+                <MaterialCommunityIcons name="cash" size={13} color="rgba(255,255,255,0.9)"/>
+                <Text style={{ color:'rgba(255,255,255,0.95)', fontSize:12, fontWeight:'700' }}>
+                  Hoy: {formatMoneda(cobradoHoy)}
+                </Text>
+              </View>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:5,
+                             backgroundColor:'rgba(255,255,255,0.18)', borderRadius:20,
+                             paddingHorizontal:12, paddingVertical:5 }}>
+                <MaterialCommunityIcons name="clock-check-outline" size={13} color="rgba(255,255,255,0.9)"/>
+                <Text style={{ color:'rgba(255,255,255,0.95)', fontSize:12, fontWeight:'700' }}>
+                  {cobrosHoy} cobros pendientes
+                </Text>
+              </View>
             </View>
-            {prestamosEnMora.length === 0
-              ? <View style={w.panelBody}>
-                  <MaterialCommunityIcons name="emoticon-happy-outline" size={36} color="#4caf50"/>
-                  <Text style={w.panelEmpty}>Sin clientes en mora</Text>
-                </View>
-              : <ScrollView style={{ maxHeight: 240 }}>
-                  {prestamosEnMora.map((p: PrestamoMoraItem, i: number) => (
-                    <TouchableOpacity key={i} style={w.panelItem}
-                      onPress={() => router.push(`/(app)/prestamos/${p.id}` as any)}>
-                      <View style={{ flex:1 }}>
-                        <Text style={w.panelItemNombre}>{p.cliente_nombre}</Text>
-                        <Text style={w.panelItemSub}>Cuota {p.frecuencia}: {formatMoneda(p.cuota)} · Venció: {formatFecha(p.fecha_fin)}</Text>
-                      </View>
-                      <Text style={[w.panelItemMonto,{color:'#c62828'}]}>{formatMoneda(p.monto)}</Text>
-                      <MaterialCommunityIcons name="chevron-right" size={16} color="#ccc" style={{marginLeft:4}}/>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-            }
-          </FadeIn>
+          </View>
 
-        </View>
+          {/* Sparkline SVG */}
+          {Platform.OS === 'web' && (
+            <View style={{ height:72 }}>
+              {((() => {
+                const SparkSVG: any = 'svg';
+                const SparkPath: any = 'path';
+                const SparkDefs: any = 'defs';
+                const SparkLinGrad: any = 'linearGradient';
+                const SparkStop: any = 'stop';
+                return (
+                  <SparkSVG
+                    width="100%" height="72" viewBox="0 0 400 72"
+                    preserveAspectRatio="none"
+                    style={{ display:'block' }}
+                  >
+                    <SparkDefs>
+                      <SparkLinGrad id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <SparkStop offset="0%" stopColor="white" stopOpacity="0.25"/>
+                        <SparkStop offset="100%" stopColor="white" stopOpacity="0"/>
+                      </SparkLinGrad>
+                    </SparkDefs>
+                    <SparkPath
+                      d="M0,52 C40,48 70,58 110,40 C150,24 180,50 220,32 C260,16 300,44 340,22 C370,8 390,14 400,10 L400,72 L0,72 Z"
+                      fill="url(#sparkFill)"
+                    />
+                    <SparkPath
+                      d="M0,52 C40,48 70,58 110,40 C150,24 180,50 220,32 C260,16 300,44 340,22 C370,8 390,14 400,10"
+                      fill="none" stroke="white" strokeWidth="2.5" strokeOpacity="0.55"
+                      strokeLinecap="round"
+                    />
+                  </SparkSVG>
+                );
+              })())}
+            </View>
+          )}
+        </FadeIn>
 
-        {/* Accesos rápidos */}
-        <Text style={w.sectionTitle}>Accesos Rápidos</Text>
-        <View style={w.quickRow}>
+        {/* Grid 2×2 stats */}
+        <View style={{ flex:3, flexDirection:'row', flexWrap:'wrap', gap:12 }}>
           {[
-            { icon:'cash-multiple',    label:'Cobros del Día',  color:'#42a5f5', path:'/cobros'          },
-            { icon:'account-plus',     label:'Nuevo Cliente',   color:'#2e7d32', path:'/clientes/nuevo'  },
-            { icon:'plus-circle',      label:'Nuevo Préstamo',  color:'#1565c0', path:'/prestamos/nuevo' },
-            { icon:'file-chart',       label:'Generar Reporte', color:'#6a1b9a', path:'/reportes'        },
-            { icon:'receipt',          label:'Facturas',        color:'#7c4dff', path:'/facturas'        },
+            { icon:'account-group-outline', color:'#2563eb', bg: dark?'#1e3a5f':'#eff6ff', value:stats.clientes, label:'Clientes Activos',  money:false },
+            { icon:'bank-outline',          color:'#16a34a', bg: dark?'#14412a':'#f0fdf4', value:stats.activos,  label:'Préstamos Activos', money:false },
+            { icon:'cash-multiple',         color:'#ea580c', bg: dark?'#431407':'#fff7ed', value:cobradoHoy,     label:'Cobrado Hoy',       money:true, progress: true },
+            { icon:'alert-circle-outline',  color:'#dc2626', bg: dark?'#450a0a':'#fef2f2', value:stats.mora,     label:'En Mora',           money:false },
+          ].map((s: any, i: number) => {
+            const pct = s.progress && carteraTotal > 0
+              ? Math.min(100, Math.round((cobradoHoy / (carteraTotal * 0.05)) * 100))
+              : 0;
+            return (
+              <FadeIn key={s.label} delay={120 + i * 60} style={{
+                flex:1, minWidth:'45%', backgroundColor: CARD, borderRadius:18,
+                padding:18, borderWidth:1, borderColor: BORDER,
+                ...(({ boxShadow: SHADOW } as any)),
+              }}>
+                <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+                  <View style={{ width:40, height:40, borderRadius:12, backgroundColor:s.bg,
+                                 justifyContent:'center', alignItems:'center' }}>
+                    <MaterialCommunityIcons name={s.icon as any} size={20} color={s.color}/>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={TEXT_M}/>
+                </View>
+                <AnimatedNumber
+                  value={s.value ?? 0}
+                  formatter={s.money ? (n: number) => formatMoneda(n) : (n: number) => String(Math.round(n))}
+                  style={{ fontSize:s.money ? 18 : 26, fontWeight:'800', color: TEXT }}
+                />
+                <Text style={{ fontSize:11, color:TEXT_S, marginTop:3 }}>{s.label}</Text>
+                {s.progress && (
+                  <View style={{ marginTop:10 }}>
+                    <View style={{ height:4, backgroundColor: dark?'rgba(255,255,255,0.08)':'#f1f5f9',
+                                   borderRadius:2, overflow:'hidden' }}>
+                      <View style={{ height:4, width:`${pct}%` as any, backgroundColor:s.color,
+                                     borderRadius:2 }}/>
+                    </View>
+                    <Text style={{ fontSize:10, color:TEXT_M, marginTop:4 }}>
+                      {pct}% de meta diaria
+                    </Text>
+                  </View>
+                )}
+              </FadeIn>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* ── Paneles: Cobros + Mora ── */}
+      <View style={{ flexDirection:'row', gap:16 }}>
+
+        {/* Cobros pendientes */}
+        <FadeIn delay={380} style={{
+          flex:1, backgroundColor: CARD, borderRadius:24,
+          borderWidth:1, borderColor: BORDER, overflow:'hidden',
+          ...(({ boxShadow: SHADOW } as any)),
+        }}>
+          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                         paddingHorizontal:20, paddingVertical:16,
+                         borderBottomWidth:1, borderBottomColor: DIVIDER }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+              <View style={{ width:32, height:32, borderRadius:10,
+                             backgroundColor: dark?'#431407':'#fff7ed',
+                             justifyContent:'center', alignItems:'center' }}>
+                <MaterialCommunityIcons name="clock-alert-outline" size={16} color="#ea580c"/>
+              </View>
+              <Text style={{ fontSize:14, fontWeight:'700', color:TEXT }}>
+                Cobros Pendientes Hoy
+              </Text>
+            </View>
+            {cobrosPendientes.length > 0 &&
+              <View style={{ backgroundColor:'#ea580c', borderRadius:20, paddingHorizontal:9, paddingVertical:3 }}>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{cobrosPendientes.length}</Text>
+              </View>
+            }
+          </View>
+
+          {cobrosPendientes.length === 0
+            ? <View style={{ padding:32, alignItems:'center', gap:10 }}>
+                <MaterialCommunityIcons name="check-circle-outline" size={40} color="#86efac"/>
+                <Text style={{ color:TEXT_M, fontSize:13 }}>No hay cobros pendientes hoy</Text>
+              </View>
+            : <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
+                {cobrosPendientes.map((c: CobroPendiente, i: number) => (
+                  <TouchableOpacity key={i}
+                    style={{ flexDirection:'row', alignItems:'center',
+                             paddingHorizontal:20, paddingVertical:13,
+                             borderBottomWidth:1, borderBottomColor: DIVIDER }}
+                    onPress={() => router.push(`/(app)/prestamos/${c.prestamo_id}` as any)}>
+                    <View style={{ width:38, height:38, borderRadius:19,
+                                   backgroundColor: C.primary + '20',
+                                   justifyContent:'center', alignItems:'center', marginRight:12 }}>
+                      <Text style={{ fontSize:14, fontWeight:'800', color: C.primary }}>
+                        {c.cliente_nombre.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex:1 }}>
+                      <Text style={{ fontSize:13, fontWeight:'700', color:TEXT }} numberOfLines={1}>
+                        {c.cliente_nombre}
+                      </Text>
+                      <Text style={{ fontSize:11, color:TEXT_M, marginTop:1 }}>
+                        Cuota #{c.numero_cuota} · {c.frecuencia}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize:14, fontWeight:'800', color: C.primary }}>
+                      {formatMoneda(c.monto)}
+                    </Text>
+                    <MaterialCommunityIcons name="chevron-right" size={16} color={TEXT_M} style={{ marginLeft:6 }}/>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+          }
+        </FadeIn>
+
+        {/* Clientes en mora */}
+        <FadeIn delay={440} style={{
+          flex:1, backgroundColor: CARD, borderRadius:24,
+          borderWidth:1, borderColor: BORDER, overflow:'hidden',
+          ...(({ boxShadow: SHADOW } as any)),
+        }}>
+          <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                         paddingHorizontal:20, paddingVertical:16,
+                         borderBottomWidth:1, borderBottomColor: DIVIDER }}>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+              <View style={{ width:32, height:32, borderRadius:10,
+                             backgroundColor: dark?'#450a0a':'#fef2f2',
+                             justifyContent:'center', alignItems:'center' }}>
+                <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#dc2626"/>
+              </View>
+              <Text style={{ fontSize:14, fontWeight:'700', color:TEXT }}>
+                Clientes en Mora
+              </Text>
+            </View>
+            {prestamosEnMora.length > 0 &&
+              <View style={{ backgroundColor:'#dc2626', borderRadius:20, paddingHorizontal:9, paddingVertical:3 }}>
+                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{prestamosEnMora.length}</Text>
+              </View>
+            }
+          </View>
+
+          {prestamosEnMora.length === 0
+            ? <View style={{ padding:32, alignItems:'center', gap:10 }}>
+                <MaterialCommunityIcons name="emoticon-happy-outline" size={40} color="#86efac"/>
+                <Text style={{ color:TEXT_M, fontSize:13 }}>Sin clientes en mora</Text>
+              </View>
+            : <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
+                {prestamosEnMora.map((p: PrestamoMoraItem, i: number) => (
+                  <TouchableOpacity key={i}
+                    style={{ flexDirection:'row', alignItems:'center',
+                             paddingHorizontal:20, paddingVertical:13,
+                             borderBottomWidth:1, borderBottomColor: DIVIDER }}
+                    onPress={() => router.push(`/(app)/prestamos/${p.id}` as any)}>
+                    <View style={{ width:38, height:38, borderRadius:19,
+                                   backgroundColor: dark?'#450a0a':'#fef2f2',
+                                   justifyContent:'center', alignItems:'center', marginRight:12 }}>
+                      <Text style={{ fontSize:14, fontWeight:'800', color:'#dc2626' }}>
+                        {p.cliente_nombre.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={{ flex:1 }}>
+                      <Text style={{ fontSize:13, fontWeight:'700', color:TEXT }} numberOfLines={1}>
+                        {p.cliente_nombre}
+                      </Text>
+                      <Text style={{ fontSize:11, color:TEXT_M, marginTop:1 }}>
+                        Cuota: {formatMoneda(p.cuota)} · Venció: {formatFecha(p.fecha_fin)}
+                      </Text>
+                    </View>
+                    <View style={{ backgroundColor: dark?'#450a0a':'#fef2f2', borderRadius:20,
+                                   borderWidth:1, borderColor: dark?'#7f1d1d':'#fecaca',
+                                   paddingHorizontal:10, paddingVertical:4 }}>
+                      <Text style={{ color:'#dc2626', fontSize:10, fontWeight:'800' }}>MORA</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+          }
+        </FadeIn>
+      </View>
+
+      {/* ── Accesos rápidos ── */}
+      <View>
+        <Text style={{ fontSize:11, fontWeight:'700', color:TEXT_M,
+                       textTransform:'uppercase', letterSpacing:0.8, marginBottom:14 }}>
+          Accesos Rápidos
+        </Text>
+        <View style={{ flexDirection:'row', gap:12 }}>
+          {[
+            { icon:'cash-multiple',  label:'Cobros del Día',  color:'#2563eb', bg: dark?'#1e3a5f':'#eff6ff', path:'/cobros'          },
+            { icon:'account-plus',   label:'Nuevo Cliente',   color:'#16a34a', bg: dark?'#14412a':'#f0fdf4', path:'/clientes/nuevo'  },
+            { icon:'plus-circle',    label:'Nuevo Préstamo',  color:'#7c3aed', bg: dark?'#2e1065':'#f5f3ff', path:'/prestamos/nuevo' },
+            { icon:'file-chart',     label:'Generar Reporte', color:'#ea580c', bg: dark?'#431407':'#fff7ed', path:'/reportes'        },
+            { icon:'receipt',        label:'Facturas',        color:'#0891b2', bg: dark?'#0c3d4a':'#ecfeff', path:'/facturas'        },
           ].map((a, i) => (
-            <QuickCard key={a.path} icon={a.icon} label={a.label} color={a.color}
-              index={i} onPress={() => router.push(a.path as any)} styles={w}/>
+            <QuickCard key={a.path} icon={a.icon} label={a.label} color={a.color} bg={a.bg}
+              cardBg={CARD} border={BORDER} textColor={TEXT}
+              index={i} onPress={() => router.push(a.path as any)}/>
           ))}
         </View>
-
-      </ScrollView>
-    </View>
-  );
-}
-
-function WStat({ icon, color, rawValue, isMoney, label, index = 0 }: any) {
-  const C = useColors();
-  const w = useMemo(() => makeStylesW(C), [C]);
-  return (
-    <FadeIn delay={80 + index * 65} style={w.statCard}>
-      <View style={[w.statIcon, {backgroundColor: color+'15'}]}>
-        <MaterialCommunityIcons name={icon} size={22} color={color}/>
       </View>
-      <AnimatedNumber
-        value={rawValue ?? 0}
-        formatter={isMoney ? (n) => formatMoneda(n) : (n) => String(Math.round(n))}
-        style={[w.statValue, {color}]}
-      />
-      <Text style={w.statLabel}>{label}</Text>
-    </FadeIn>
+
+    </ScrollView>
   );
 }
 
-/* ─── MOBILE ───────────────────────────────────────────────────── */
-function MobileDashboard({ stats, cobradoHoy, carteraTotal, perfil, refresh, onRefresh, cobrosPendientes, prestamosEnMora }: any) {
-  const C = useColors();
-  const m = useMemo(() => makeStylesM(C), [C]);
+// WStat conservado pero ya no usado en WebDashboard (se usa FadeIn inline)
+function WStat({ icon, color, rawValue, isMoney, label, index = 0 }: any) {
+  return null;
+}
 
-  // Animación de giro para el botón de recarga
+/* ─── MOBILE ─── UXDA-inspired ──────────────────────────────────── */
+function MobileDashboard({ stats, cobradoHoy, carteraTotal, perfil, refresh, onRefresh, cobrosPendientes, prestamosEnMora }: any) {
+  const C   = useColors();
+  const { dark } = useTheme();
+  const PRI = C.primary;
+
+  // Paleta dinámica light/dark
+  const BG      = dark ? '#070d1b'                   : '#f0f4ff';
+  const CARD    = dark ? 'rgba(22,34,64,0.95)'       : '#ffffff';
+  const CARD2   = dark ? 'rgba(255,255,255,0.04)'    : '#f8faff';
+  const BORDER  = dark ? 'rgba(255,255,255,0.07)'    : 'rgba(37,99,235,0.10)';
+  const TEXT    = dark ? '#f1f5f9'                   : '#0f172a';
+  const TEXT_S  = dark ? '#94a3b8'                   : '#64748b';
+  const TEAL    = dark ? '#00d4b0'                   : '#0891b2';
+  const HERO_A  = dark ? PRI                         : PRI;
+  const HERO_B  = dark ? '#5b21b6'                   : '#7c3aed';
+
   const spinAnim = useRef(new Animated.Value(0)).current;
   const spinLoop = useRef<Animated.CompositeAnimation | null>(null);
 
   const handleReload = () => {
     if (refresh) return;
-    // Iniciar giro continuo
     spinAnim.setValue(0);
     spinLoop.current = Animated.loop(
       Animated.timing(spinAnim, { toValue: 1, duration: 700, useNativeDriver: true })
@@ -354,7 +569,6 @@ function MobileDashboard({ stats, cobradoHoy, carteraTotal, perfil, refresh, onR
     onRefresh();
   };
 
-  // Detener giro cuando termina la carga
   React.useEffect(() => {
     if (!refresh && spinLoop.current) {
       spinLoop.current.stop();
@@ -366,82 +580,236 @@ function MobileDashboard({ stats, cobradoHoy, carteraTotal, perfil, refresh, onR
   const spinDeg = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   return (
-    <ScrollView style={m.container}
-      refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh} colors={[C.primary]}/>}>
-      <View style={m.header}>
+    <ScrollView
+      style={{ flex:1, backgroundColor: BG }}
+      contentContainerStyle={{ paddingBottom:40 }}
+      refreshControl={<RefreshControl refreshing={refresh} onRefresh={onRefresh} colors={[PRI]}/>}
+    >
+      {/* ── Header ── */}
+      <View style={{ paddingHorizontal:20, paddingTop:22, paddingBottom:10,
+                     flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
         <View>
-          <Text style={m.hola}>Hola, {perfil?.nombre?.split(' ')[0]} 👋</Text>
-          <Text style={m.sub}>{(perfil?.rol||'').toUpperCase()}</Text>
+          <Text style={{ fontSize:24, fontWeight:'800', color:TEXT, letterSpacing:-0.3 }}>
+            Hola, {perfil?.nombre?.split(' ')[0]} 👋
+          </Text>
+          <Text style={{ fontSize:12, color:TEXT_S, marginTop:2 }}>
+            {(perfil?.rol||'admin').toUpperCase()} · CAS Tamanique
+          </Text>
         </View>
-        <TouchableOpacity onPress={handleReload} style={m.reloadBtn} activeOpacity={0.7}>
-          <Animated.View style={{ transform: [{ rotate: spinDeg }] }}>
-            <MaterialCommunityIcons name="refresh" size={22} color="#fff"/>
+        <TouchableOpacity onPress={handleReload} activeOpacity={0.7}
+          style={{ width:42, height:42, borderRadius:21, backgroundColor:CARD,
+                   borderWidth:1, borderColor:BORDER,
+                   justifyContent:'center', alignItems:'center' }}>
+          <Animated.View style={{ transform:[{ rotate: spinDeg }] }}>
+            <MaterialCommunityIcons name="refresh" size={20} color={PRI}/>
           </Animated.View>
         </TouchableOpacity>
       </View>
-      <View style={m.body}>
-        <Text style={m.sec}>Resumen</Text>
-        <View style={m.grid}>
-          <MStat icon="account-group" color="#1565c0" value={stats.clientes}                  label="Clientes"/>
-          <MStat icon="bank"          color="#2e7d32" value={stats.activos}                   label="Activos"/>
-          <MStat icon="alert-circle"  color="#c62828" value={stats.mora}                      label="En Mora"/>
-          <MStat icon="cash"          color="#e65100" value={formatMoneda(cobradoHoy)}         label="Cobrado hoy"/>
+
+      {/* ── Hero cartera — gradiente azul→morado ── */}
+      <View style={{ marginHorizontal:16, marginBottom:16, borderRadius:24, overflow:'hidden',
+                     ...(Platform.OS === 'web'
+                       ? ({ background:`linear-gradient(135deg, ${HERO_A} 0%, ${HERO_B} 100%)`,
+                            boxShadow:`0 12px 36px ${HERO_A}55` } as any)
+                       : { backgroundColor: HERO_A }) }}>
+        {/* Capa de gradiente para Android (simulado) */}
+        {Platform.OS !== 'web' && (
+          <View style={{ position:'absolute', right:0, top:0, bottom:0, width:'55%',
+                         backgroundColor: HERO_B, opacity:0.5, borderRadius:24 }}/>
+        )}
+        {/* Círculo decorativo */}
+        <View style={{ position:'absolute', right:-24, top:-24, width:120, height:120,
+                       borderRadius:60, backgroundColor:'rgba(255,255,255,0.06)' }}/>
+        <View style={{ position:'absolute', right:32, bottom:-30, width:80, height:80,
+                       borderRadius:40, backgroundColor:'rgba(255,255,255,0.04)' }}/>
+
+        <View style={{ padding:22 }}>
+          {/* Etiqueta + ojo */}
+          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+            <Text style={{ color:'rgba(255,255,255,0.7)', fontSize:12, fontWeight:'600', letterSpacing:0.4 }}>
+              Cartera Activa Total
+            </Text>
+            <MaterialCommunityIcons name="eye-outline" size={20} color="rgba(255,255,255,0.5)"/>
+          </View>
+
+          {/* Monto principal */}
+          <Text style={{ color:'#ffffff', fontSize:34, fontWeight:'900', letterSpacing:-0.5, marginBottom:4 }}>
+            {formatMoneda(carteraTotal)}
+          </Text>
+
+          {/* Cobrado hoy con acento verde */}
+          <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:18 }}>
+            <MaterialCommunityIcons name="trending-up" size={14} color={TEAL}/>
+            <Text style={{ color:TEAL, fontSize:13, fontWeight:'700' }}>
+              +{formatMoneda(cobradoHoy)} cobrado hoy
+            </Text>
+            <View style={{ width:4, height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.3)' }}/>
+            <Text style={{ color:'rgba(255,255,255,0.55)', fontSize:12 }}>
+              {cobrosPendientes.length} pendientes
+            </Text>
+          </View>
+
+          {/* Dots de paginación estilo UXDA */}
+          <View style={{ flexDirection:'row', gap:5 }}>
+            <View style={{ width:20, height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.9)' }}/>
+            <View style={{ width:4, height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.3)' }}/>
+            <View style={{ width:4, height:4, borderRadius:2, backgroundColor:'rgba(255,255,255,0.3)' }}/>
+          </View>
+        </View>
+      </View>
+
+      {/* ── 3 stat cards ── */}
+      <View style={{ flexDirection:'row', gap:10, marginHorizontal:16, marginBottom:22 }}>
+        {[
+          { icon:'account-group-outline', color:'#3b82f6', bg: dark?'rgba(59,130,246,0.15)':'#eff6ff',
+            border: dark?'rgba(59,130,246,0.25)':'#bfdbfe', value:stats.clientes, label:'Clientes' },
+          { icon:'bank-outline',          color:'#10b981', bg: dark?'rgba(16,185,129,0.15)':'#ecfdf5',
+            border: dark?'rgba(16,185,129,0.25)':'#a7f3d0', value:stats.activos,  label:'Préstamos' },
+          { icon:'alert-circle-outline',  color:'#ef4444', bg: dark?'rgba(239,68,68,0.15)':'#fef2f2',
+            border: dark?'rgba(239,68,68,0.25)':'#fecaca', value:stats.mora,      label:'En Mora' },
+        ].map(s => (
+          <View key={s.label} style={{ flex:1, backgroundColor:s.bg, borderRadius:18,
+                                       padding:14, alignItems:'center',
+                                       borderWidth:1, borderColor:s.border }}>
+            <View style={{ width:40, height:40, borderRadius:12,
+                           backgroundColor: dark?'rgba(255,255,255,0.08)':s.color+'20',
+                           justifyContent:'center', alignItems:'center', marginBottom:8 }}>
+              <MaterialCommunityIcons name={s.icon as any} size={20} color={s.color}/>
+            </View>
+            <Text style={{ color:TEXT, fontSize:22, fontWeight:'900' }}>{s.value}</Text>
+            <Text style={{ color:TEXT_S, fontSize:10, marginTop:2, fontWeight:'600' }}>{s.label}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* ── Sección: Cobros pendientes ── */}
+      <View style={{ marginHorizontal:16, marginBottom:20 }}>
+        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+          <Text style={{ fontSize:14, fontWeight:'800', color:TEXT }}>
+            Cobros Pendientes
+          </Text>
+          <View style={{ backgroundColor: dark?'rgba(37,99,235,0.18)':'#eff6ff',
+                         borderRadius:20, paddingHorizontal:10, paddingVertical:3 }}>
+            <Text style={{ color:PRI, fontSize:11, fontWeight:'800' }}>
+              {cobrosPendientes.length} HOY
+            </Text>
+          </View>
         </View>
 
-        <Text style={[m.sec,{marginTop:20}]}>Cobros Pendientes Hoy ({cobrosPendientes.length})</Text>
         {cobrosPendientes.length === 0
-          ? <View style={m.emptyPanel}>
-              <MaterialCommunityIcons name="check-circle-outline" size={28} color="#4caf50"/>
-              <Text style={m.emptyTxt}>No hay cobros pendientes</Text>
+          ? <View style={{ backgroundColor:CARD, borderRadius:16, padding:16,
+                           flexDirection:'row', alignItems:'center', gap:12,
+                           borderWidth:1, borderColor:BORDER }}>
+              <MaterialCommunityIcons name="check-circle-outline" size={28} color="#10b981"/>
+              <Text style={{ color:TEXT_S, fontSize:13 }}>Sin cobros pendientes hoy 🎉</Text>
             </View>
-          : cobrosPendientes.slice(0,5).map((c: CobroPendiente, i: number) => (
-              <TouchableOpacity key={i} style={m.listItem}
+          : cobrosPendientes.slice(0,10).map((c: CobroPendiente, i: number) => (
+              <TouchableOpacity key={i} activeOpacity={0.75}
+                style={{ backgroundColor:CARD, borderRadius:16, padding:14,
+                         marginBottom:8, flexDirection:'row', alignItems:'center',
+                         borderWidth:1, borderColor:BORDER }}
                 onPress={() => router.push(`/(app)/prestamos/${c.prestamo_id}` as any)}>
-                <View style={{flex:1}}>
-                  <Text style={m.listNombre}>{c.cliente_nombre}</Text>
-                  <Text style={m.listSub}>Cuota #{c.numero_cuota} · {c.frecuencia}</Text>
+                {/* Avatar inicial */}
+                <View style={{ width:42, height:42, borderRadius:21,
+                               backgroundColor: dark?'rgba(37,99,235,0.20)':'#eff6ff',
+                               justifyContent:'center', alignItems:'center', marginRight:12 }}>
+                  <Text style={{ color:PRI, fontSize:16, fontWeight:'800' }}>
+                    {c.cliente_nombre.charAt(0).toUpperCase()}
+                  </Text>
                 </View>
-                <Text style={m.listMonto}>{formatMoneda(c.monto)}</Text>
+                <View style={{ flex:1 }}>
+                  <Text style={{ color:TEXT, fontSize:13, fontWeight:'800' }} numberOfLines={1}>
+                    {c.cliente_nombre}
+                  </Text>
+                  <Text style={{ color:TEXT_S, fontSize:11, marginTop:2 }}>
+                    Cuota #{c.numero_cuota} · {c.frecuencia}
+                  </Text>
+                </View>
+                <View style={{ alignItems:'flex-end' }}>
+                  <Text style={{ color:TEAL, fontSize:16, fontWeight:'900' }}>
+                    {formatMoneda(c.monto)}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-right" size={16} color={TEXT_S}/>
+                </View>
               </TouchableOpacity>
             ))
         }
-        {cobrosPendientes.length > 5 && <Text style={m.verMas}>+{cobrosPendientes.length - 5} más · Ver cobros del día</Text>}
+        {cobrosPendientes.length > 10 &&
+          <Text style={{ color:TEXT_S, fontSize:12, textAlign:'center', marginTop:4 }}>
+            +{cobrosPendientes.length - 10} más pendientes
+          </Text>
+        }
+      </View>
 
-        <Text style={[m.sec,{marginTop:20}]}>Clientes en Mora ({prestamosEnMora.length})</Text>
-        {prestamosEnMora.length === 0
-          ? <View style={m.emptyPanel}>
-              <MaterialCommunityIcons name="emoticon-happy-outline" size={28} color="#4caf50"/>
-              <Text style={m.emptyTxt}>Sin clientes en mora</Text>
+      {/* ── Sección: En mora ── */}
+      {prestamosEnMora.length > 0 && (
+        <View style={{ marginHorizontal:16, marginBottom:22 }}>
+          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+            <Text style={{ fontSize:14, fontWeight:'800', color:TEXT }}>En Mora</Text>
+            <View style={{ backgroundColor: dark?'rgba(239,68,68,0.18)':'#fef2f2',
+                           borderRadius:20, paddingHorizontal:10, paddingVertical:3 }}>
+              <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'800' }}>
+                {prestamosEnMora.length} CLIENTES
+              </Text>
             </View>
-          : prestamosEnMora.slice(0,5).map((p: PrestamoMoraItem, i: number) => (
-              <TouchableOpacity key={i} style={m.listItem}
-                onPress={() => router.push(`/(app)/prestamos/${p.id}` as any)}>
-                <View style={{flex:1}}>
-                  <Text style={m.listNombre}>{p.cliente_nombre}</Text>
-                  <Text style={m.listSub}>{formatMoneda(p.monto)} · cuota {formatMoneda(p.cuota)}</Text>
-                </View>
-                <View style={m.moraTag}><Text style={m.moraTxt}>MORA</Text></View>
-              </TouchableOpacity>
-            ))
-        }
+          </View>
+          {prestamosEnMora.map((p: PrestamoMoraItem, i: number) => (
+            <TouchableOpacity key={i} activeOpacity={0.75}
+              style={{ backgroundColor:CARD, borderRadius:16, padding:14,
+                       marginBottom:8, flexDirection:'row', alignItems:'center',
+                       borderWidth:1, borderColor: dark?'rgba(239,68,68,0.20)':'#fecaca',
+                       borderLeftWidth:3, borderLeftColor:'#ef4444' }}
+              onPress={() => router.push(`/(app)/prestamos/${p.id}` as any)}>
+              <View style={{ width:42, height:42, borderRadius:21,
+                             backgroundColor: dark?'rgba(239,68,68,0.15)':'#fef2f2',
+                             justifyContent:'center', alignItems:'center', marginRight:12 }}>
+                <MaterialCommunityIcons name="alert" size={20} color="#ef4444"/>
+              </View>
+              <View style={{ flex:1 }}>
+                <Text style={{ color:TEXT, fontSize:13, fontWeight:'800' }} numberOfLines={1}>
+                  {p.cliente_nombre}
+                </Text>
+                <Text style={{ color:TEXT_S, fontSize:11, marginTop:2 }}>
+                  {formatMoneda(p.monto)} · cuota {formatMoneda(p.cuota)}
+                </Text>
+              </View>
+              <View style={{ backgroundColor: dark?'rgba(239,68,68,0.20)':'#fef2f2',
+                             borderRadius:8, paddingHorizontal:8, paddingVertical:4,
+                             borderWidth:1, borderColor: dark?'rgba(239,68,68,0.35)':'#fecaca' }}>
+                <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'800' }}>MORA</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
-        <Text style={[m.sec,{marginTop:20}]}>Accesos rápidos</Text>
-        <View style={m.grid}>
+      {/* ── Accesos rápidos ── */}
+      <View style={{ marginHorizontal:16, marginBottom:10 }}>
+        <Text style={{ fontSize:11, fontWeight:'700', color:TEXT_S, letterSpacing:0.8,
+                       textTransform:'uppercase', marginBottom:12 }}>
+          Accesos Rápidos
+        </Text>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10 }}>
           {[
-            { icon:'cash',         label:'Cobros del día', color:C.primary, path:'/cobros'          },
-            { icon:'account-plus', label:'Nuevo cliente',  color:'#2e7d32', path:'/clientes/nuevo'  },
-            { icon:'plus-circle',  label:'Nuevo préstamo', color:'#1565c0', path:'/prestamos/nuevo' },
-            { icon:'file-chart',   label:'Reportes PDF',   color:'#6a1b9a', path:'/reportes'        },
-            { icon:'receipt',      label:'Facturas',       color:'#7c4dff', path:'/facturas'        },
+            { icon:'cash-multiple',  label:'Cobros del día',   color:'#3b82f6', path:'/cobros'          },
+            { icon:'account-plus',   label:'Nuevo cliente',    color:'#10b981', path:'/clientes/nuevo'  },
+            { icon:'plus-circle',    label:'Nuevo préstamo',   color:PRI,       path:'/prestamos/nuevo' },
+            { icon:'file-chart',     label:'Reportes',         color:'#8b5cf6', path:'/reportes'        },
           ].map(a => (
-            <Card key={a.path} style={m.card} onPress={() => router.push(a.path as any)} elevation={1}>
-              <Card.Content style={m.cardContent}>
-                <View style={[m.iconBox,{backgroundColor:a.color+'18'}]}>
-                  <MaterialCommunityIcons name={a.icon as any} size={26} color={a.color}/>
-                </View>
-                <Text style={m.accesoLabel}>{a.label}</Text>
-              </Card.Content>
-            </Card>
+            <TouchableOpacity key={a.path} activeOpacity={0.75}
+              style={{ width:'47%', backgroundColor:CARD, borderRadius:18,
+                       padding:16, alignItems:'center',
+                       borderWidth:1, borderColor:BORDER }}
+              onPress={() => router.push(a.path as any)}>
+              <View style={{ width:48, height:48, borderRadius:14,
+                             backgroundColor: dark?`${a.color}22`:`${a.color}15`,
+                             justifyContent:'center', alignItems:'center', marginBottom:10 }}>
+                <MaterialCommunityIcons name={a.icon as any} size={24} color={a.color}/>
+              </View>
+              <Text style={{ color:TEXT, fontSize:12, fontWeight:'700', textAlign:'center' }}>
+                {a.label}
+              </Text>
+            </TouchableOpacity>
           ))}
         </View>
       </View>
@@ -449,166 +817,37 @@ function MobileDashboard({ stats, cobradoHoy, carteraTotal, perfil, refresh, onR
   );
 }
 
-function MStat({ icon, color, value, label }: any) {
-  const C = useColors();
-  const m = useMemo(() => makeStylesM(C), [C]);
-  return (
-    <Card style={m.card} elevation={2}>
-      <Card.Content style={m.cardContent}>
-        <MaterialCommunityIcons name={icon} size={28} color={color}/>
-        <Text style={[m.valor,{color}]}>{typeof value==='number'?String(value):value}</Text>
-        <Text style={m.label}>{label}</Text>
-      </Card.Content>
-    </Card>
-  );
-}
-
 /* ─── Quick Card con hover ──────────────────────────────────────── */
-function QuickCard({ icon, label, color, index, onPress, styles: w }: any) {
+function QuickCard({ icon, label, color, bg, cardBg, border, textColor, index, onPress }: any) {
   const [hov, setHov] = useState(false);
   return (
-    <StaggerItem index={index} step={60} delay={650} style={{ flex: 1 }}>
+    <StaggerItem index={index} step={60} delay={600} style={{ flex:1 }}>
       <TouchableOpacity
         onPress={onPress}
-        style={[w.quickCard, {
-          transform: [{ scale: hov ? 1.03 : 1 }],
+        style={{
+          flex:1, borderRadius:20, padding:20, alignItems:'center',
+          backgroundColor: hov ? color : (cardBg || '#ffffff'),
+          borderWidth:1, borderColor: hov ? color : (border || '#e2e8f0'),
           // @ts-ignore
-          transition: 'transform 150ms ease, box-shadow 150ms ease',
-          boxShadow: hov
-            ? '0 8px 28px rgba(0,0,0,0.22)'
-            : '0 4px 14px rgba(0,0,0,0.10)',
-        }]}
-        // @ts-ignore — eventos de mouse en web
+          transition: 'all 160ms ease',
+          boxShadow: hov ? `0 8px 24px ${color}44` : '0 2px 8px rgba(15,23,42,0.04)',
+        }}
+        // @ts-ignore
         onMouseEnter={() => setHov(true)}
         onMouseLeave={() => setHov(false)}
       >
-        <View style={[w.quickIcon, {backgroundColor: color+'18'}]}>
-          <MaterialCommunityIcons name={icon} size={24} color={color}/>
+        <View style={{ width:48, height:48, borderRadius:14,
+                       backgroundColor: hov ? 'rgba(255,255,255,0.22)' : bg,
+                       justifyContent:'center', alignItems:'center', marginBottom:12 }}>
+          <MaterialCommunityIcons name={icon} size={24} color={hov ? '#fff' : color}/>
         </View>
-        <Text style={w.quickLabel}>{label}</Text>
+        <Text style={{ fontSize:12, fontWeight:'700', textAlign:'center',
+                       color: hov ? '#ffffff' : (textColor || '#0f172a') }}>
+          {label}
+        </Text>
       </TouchableOpacity>
     </StaggerItem>
   );
 }
 
-/* ─── STYLES – Liquid Glass ─────────────────────────────────────── */
-// Helper para estilos web-only sin romper TypeScript en native
-const webOnly = (s: object) => s as any;
-
-const makeStylesW = (C: any) => {
-  const isDark = C.isDark;
-  const tint    = isDark && C.glassTint ? C.glassTint : null;
-  const glassBg     = isDark ? (tint ? hexToRgba(tint, 0.20) : 'rgba(80,110,200,0.18)') : 'rgba(255,255,255,0.70)';
-  const glassBorder = isDark ? (tint ? hexToRgba(tint, 0.38) : 'rgba(255,255,255,0.18)') : 'rgba(255,255,255,0.72)';
-  const glassShadow = isDark
-    ? '0 4px 28px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.22)'
-    : '0 4px 24px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)';
-  const rootBg = isDark && tint
-    ? `linear-gradient(145deg,${C.bg} 0%,${hexToRgba(tint,0.12)} 55%,${C.bg} 100%)`
-    : isDark
-      ? 'linear-gradient(145deg,#060b1c 0%,#0a1438 55%,#060b1c 100%)'
-      : `linear-gradient(145deg,${C.bg} 0%,${C.bgAlt || C.bg} 45%,${C.bg}ee 100%)`;
-
-  return StyleSheet.create({
-    root:          {
-      flex:1,
-      backgroundColor: C.bg,
-      ...webOnly({ backgroundImage: rootBg }),
-    },
-    topBar:        {
-      flexDirection:'row', justifyContent:'space-between', alignItems:'center',
-      paddingHorizontal:28, paddingVertical:16,
-      borderBottomWidth:1, borderBottomColor: glassBorder,
-      backgroundColor: isDark ? (tint ? hexToRgba(tint,0.25) : 'rgba(15,25,65,0.80)') : 'rgba(255,255,255,0.72)',
-      ...webOnly({
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        boxShadow:'0 1px 0 ' + glassBorder,
-      }),
-    },
-    pageTitle:     {fontSize:22, fontWeight:'800', color:C.primaryText},
-    pageDate:      {fontSize:12, color:C.textTer, marginTop:2},
-    topUser:       {fontSize:13, fontWeight:'700', color:C.textSec},
-    body:          {padding:24, gap:20},
-    statsRow:      {flexDirection:'row', gap:12},
-    statCard:      {
-      flex:1, borderRadius:14, padding:16, alignItems:'center',
-      backgroundColor: glassBg,
-      borderWidth:1, borderColor: glassBorder,
-      ...webOnly({
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        boxShadow: glassShadow,
-      }),
-    },
-    statIcon:      {width:44, height:44, borderRadius:12, justifyContent:'center', alignItems:'center', marginBottom:10},
-    statValue:     {fontSize:22, fontWeight:'800'},
-    statLabel:     {fontSize:11, color:C.textTer, marginTop:4, textAlign:'center'},
-    panels:        {flexDirection:'row', gap:16},
-    panel:         {
-      flex:1, borderRadius:14, padding:16, minHeight:160,
-      backgroundColor: glassBg,
-      borderWidth:1, borderColor: glassBorder,
-      ...webOnly({
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        boxShadow: glassShadow,
-      }),
-    },
-    panelHeader:   {
-      flexDirection:'row', alignItems:'center', gap:8, marginBottom:12,
-      paddingBottom:10, borderBottomWidth:1,
-      borderBottomColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)',
-    },
-    panelTitle:    {fontSize:14, fontWeight:'700', color:C.text},
-    panelBadge:    {fontSize:13, fontWeight:'600', color:C.text},
-    panelBody:     {flex:1, justifyContent:'center', alignItems:'center', gap:8, paddingTop:16},
-    panelEmpty:    {fontSize:13, color:C.textMuted},
-    panelItem:     {
-      flexDirection:'row', alignItems:'center', paddingVertical:10,
-      borderBottomWidth:1,
-      borderBottomColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
-    },
-    panelItemNombre:{fontSize:13, fontWeight:'700', color:C.text},
-    panelItemSub:  {fontSize:11, color:C.textTer, marginTop:1},
-    panelItemMonto:{fontSize:14, fontWeight:'800', color:C.primaryText},
-    sectionTitle:  {fontSize:13, fontWeight:'700', color:C.textSec, textTransform:'uppercase', letterSpacing:0.5},
-    quickRow:      {flexDirection:'row', gap:12},
-    quickCard:     {
-      flex:1, borderRadius:14, padding:18, alignItems:'center',
-      backgroundColor: glassBg,
-      borderWidth:1, borderColor: glassBorder,
-      ...webOnly({
-        backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)',
-        boxShadow: glassShadow,
-      }),
-    },
-    quickIcon:     {width:52, height:52, borderRadius:14, justifyContent:'center', alignItems:'center', marginBottom:10},
-    quickLabel:    {fontSize:12, fontWeight:'700', color:C.text, textAlign:'center'},
-  });
-};
-
-const makeStylesM = (C: any) => StyleSheet.create({
-  container:   {flex:1, backgroundColor:C.bg},
-  header:      {backgroundColor:C.primary, padding:20, paddingTop:50, flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'},
-  hola:        {color:'#fff', fontSize:20, fontWeight:'700'},
-  sub:         {color:'#ffffff88', fontSize:12},
-  reloadBtn:   {width:40, height:40, borderRadius:20, backgroundColor:'rgba(255,255,255,0.18)', justifyContent:'center', alignItems:'center', marginTop:2},
-  body:        {padding:16},
-  sec:         {fontSize:12, color:C.textTer, fontWeight:'700', marginBottom:10, textTransform:'uppercase', letterSpacing:0.5},
-  grid:        {flexDirection:'row', flexWrap:'wrap', gap:10},
-  card:        {width:'47%', borderRadius:12},
-  cardContent: {alignItems:'center', paddingVertical:14},
-  valor:       {fontSize:22, fontWeight:'800', marginTop:4},
-  label:       {fontSize:11, color:C.textTer, marginTop:2},
-  iconBox:     {width:50, height:50, borderRadius:25, justifyContent:'center', alignItems:'center', marginBottom:8},
-  accesoLabel: {fontSize:12, fontWeight:'600', color:C.text, textAlign:'center'},
-  emptyPanel:  {flexDirection:'row', alignItems:'center', gap:8, backgroundColor:C.surfaceAlt,
-                borderRadius:8, padding:14, marginBottom:8},
-  emptyTxt:    {fontSize:13, color:C.textMuted},
-  listItem:    {flexDirection:'row', alignItems:'center', backgroundColor:C.surface,
-                borderRadius:10, padding:12, marginBottom:6, elevation:1},
-  listNombre:  {fontSize:13, fontWeight:'700', color:C.text},
-  listSub:     {fontSize:11, color:C.textTer, marginTop:1},
-  listMonto:   {fontSize:15, fontWeight:'800', color:C.primaryText, marginLeft:8},
-  moraTag:     {backgroundColor:C.isDark?'#3d1a1a':'#c6282822', borderRadius:6, paddingHorizontal:8, paddingVertical:3},
-  moraTxt:     {fontSize:10, fontWeight:'700', color:C.danger},
-  verMas:      {fontSize:12, color:C.textTer, textAlign:'center', marginBottom:6},
-});
+// makeStylesM eliminado — MobileDashboard usa inline styles

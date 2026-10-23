@@ -99,8 +99,9 @@ export default function AdminScreen() {
   const C = useColors();
   const s = useMemo(() => makeStyles(C), [C]);
 
-  const [lista, setLista]     = useState<GastoAdmin[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [lista, setLista]       = useState<GastoAdmin[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [expMap, setExpMap]     = useState<Map<string,string>>(new Map());
   const hoyStr = new Date().toISOString().slice(0, 10);
 
   /* ── Filtro ── */
@@ -175,9 +176,16 @@ export default function AdminScreen() {
   async function load() {
     setLoading(true);
     try {
-      const snap = await getDocs(
-        query(collection(db, col('gastos_admin')), orderBy('created_at', 'desc'))
-      );
+      const [snap, cliSnap] = await Promise.all([
+        getDocs(query(collection(db, col('gastos_admin')), orderBy('created_at', 'desc'))),
+        getDocs(collection(db, col('clientes'))),
+      ]);
+      // Mapa cliente_id → numero_expediente para ordenar por expediente
+      const mapa = new Map<string, string>();
+      cliSnap.docs.forEach(d => {
+        mapa.set(d.id, (d.data().numero_expediente as string) || '');
+      });
+      setExpMap(mapa);
       setLista(snap.docs.map(d => ({ id: d.id, ...d.data() } as GastoAdmin)));
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -797,6 +805,7 @@ export default function AdminScreen() {
     cliente_id: string;
     cliente_nombre: string;
     cliente_dui: string;
+    cliente_expediente: string;
     fecha: string;
     cargos: GastoAdmin[];
     total: number;
@@ -805,23 +814,29 @@ export default function AdminScreen() {
     const map = new Map<string, GrupoCliente>();
     listaFiltrada.forEach(g => {
       if (!map.has(g.cliente_id)) {
+        const exp = expMap.get(g.cliente_id) || '';
         map.set(g.cliente_id, {
-          cliente_id:     g.cliente_id,
-          cliente_nombre: g.cliente_nombre,
-          cliente_dui:    g.cliente_dui,
-          fecha:          g.fecha,
-          cargos:         [],
-          total:          0,
+          cliente_id:          g.cliente_id,
+          cliente_nombre:      g.cliente_nombre,
+          cliente_dui:         g.cliente_dui,
+          cliente_expediente:  exp,
+          fecha:               g.fecha,
+          cargos:              [],
+          total:               0,
         });
       }
       const grp = map.get(g.cliente_id)!;
       grp.cargos.push(g);
       grp.total += g.monto;
-      // Keep most recent fecha
       if (g.fecha > grp.fecha) grp.fecha = g.fecha;
     });
-    return Array.from(map.values());
-  }, [listaFiltrada]);
+    // Ordenar por número de expediente (numérico) asc
+    return Array.from(map.values()).sort((a, b) => {
+      const nA = parseInt(a.cliente_expediente?.replace(/\D/g,'') || '99999', 10);
+      const nB = parseInt(b.cliente_expediente?.replace(/\D/g,'') || '99999', 10);
+      return nA - nB;
+    });
+  }, [listaFiltrada, expMap]);
   const totalGeneral = useMemo(() => lista.reduce((a, b) => a + b.monto, 0), [lista]);
   const clientesFiltrados = useMemo(() =>
     clientesLista.filter(c =>
@@ -879,69 +894,92 @@ export default function AdminScreen() {
         refreshing={loading}
         onRefresh={load}
         contentContainerStyle={{ padding:12 }}
-        renderItem={({ item: grp }) => (
-          <Card style={s.card} elevation={2}>
+        renderItem={({ item: grp, index: grpIdx }) => {
+          // Paleta de acentos — rota por cliente
+          const ACCENTS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#f97316','#ec4899'];
+          const accent  = ACCENTS[grpIdx % ACCENTS.length];
+          const headerGrad = Platform.OS === 'web'
+            ? ({ background: C.isDark
+                ? `linear-gradient(135deg, ${accent}28 0%, transparent 65%)`
+                : `linear-gradient(135deg, ${accent}14 0%, #ffffff 65%)` } as any)
+            : { backgroundColor: C.isDark ? `${accent}28` : `${accent}10` };
+          return (
+          <Card style={[s.card, { borderTopWidth:3, borderTopColor: accent }]} elevation={2}>
             {/* ── Cabecera de cliente ── */}
-            <View style={s.grpHeader}>
-              <View style={{ flex:1, minWidth:0 }}>
-                <Text style={s.clienteNom} numberOfLines={1}>
-                  {grp.cliente_nombre.toUpperCase()}
-                </Text>
-                {grp.cliente_dui ? (
-                  <Text style={s.sub}>DUI: {grp.cliente_dui} · {grp.fecha}</Text>
-                ) : (
-                  <Text style={s.sub}>{grp.fecha}</Text>
-                )}
+            <View style={[s.grpHeader, headerGrad]}>
+              <View style={{ flex:1, minWidth:0, flexDirection:'row', alignItems:'center', gap:8 }}>
+                {/* Badge expediente */}
+                {grp.cliente_expediente ? (
+                  <View style={[s.expBadge, { backgroundColor:`${accent}22`, borderColor:`${accent}55` }]}>
+                    <Text style={[s.expBadgeTxt, { color: accent }]}>{grp.cliente_expediente}</Text>
+                  </View>
+                ) : null}
+                <View style={{ flex:1, minWidth:0 }}>
+                  <Text style={s.clienteNom} numberOfLines={1}>
+                    {grp.cliente_nombre.toUpperCase()}
+                  </Text>
+                  {grp.cliente_dui ? (
+                    <Text style={s.sub}>DUI: {grp.cliente_dui} · {grp.fecha}</Text>
+                  ) : (
+                    <Text style={s.sub}>{grp.fecha}</Text>
+                  )}
+                </View>
               </View>
               <View style={{ alignItems:'flex-end' }}>
-                <Text style={s.grpTotal}>{formatMoneda(grp.total)}</Text>
+                <Text style={[s.grpTotal, { color: accent }]}>{formatMoneda(grp.total)}</Text>
                 <Text style={{ fontSize:10, color:C.textTer }}>
                   {grp.cargos.length} cargo{grp.cargos.length!==1?'s':''}
                 </Text>
               </View>
             </View>
 
-            {/* ── Líneas de cargo ── */}
-            {grp.cargos.map((cargo, idx) => {
+            {/* ── Líneas de cargo — mini-cards individuales ── */}
+            <View style={{ padding:10, gap:8 }}>
+            {grp.cargos.map((cargo) => {
               const tipo = TIPOS_BASE.find(t => t.key === (cargo as any).tipo);
               const esBorrando = borrandoId === cargo.id;
               const esDistribuido = cargo.tipo_cobro === 'distribuido';
               const cobradas = cargo.cuotas_cobradas || 0;
               const plan     = cargo.cuotas_plan || 1;
               const pct      = Math.round((cobradas / plan) * 100);
+              const completado = pct >= 100;
+              const clienteRef = { id: grp.cliente_id, nombre: grp.cliente_nombre, dui: grp.cliente_dui };
+              const itemsRef   = cargo.items
+                ? cargo.items.map(i => ({ concepto: i.concepto, monto: i.monto }))
+                : [{ concepto: cargo.concepto, monto: cargo.monto }];
+
               return (
-                <View key={cargo.id}
-                  style={[s.cargoRow, idx < grp.cargos.length - 1 && s.cargoRowBorder,
-                    { flexDirection:'column', alignItems:'stretch', gap:6 }]}>
-                  {/* Fila principal */}
-                  <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-                    {/* Badge tipo o distribución */}
+                <View key={cargo.id} style={[
+                  s.cargoCard,
+                  completado && s.cargoCardCompletado,
+                ]}>
+                  {/* ── Fila 1: badge + concepto + monto + borrar ── */}
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:8 }}>
                     {esDistribuido
-                      ? <View style={[s.tipoBadge, { backgroundColor:'#1565c020' }]}>
+                      ? <View style={[s.tipoBadge, { backgroundColor:'#1565c018' }]}>
                           <Text style={[s.tipoBadgeTxt, { color:'#1565c0' }]}>📊 Distribuido</Text>
                         </View>
                       : tipo
-                        ? <View style={[s.tipoBadge, { backgroundColor:(tipo.color)+'1a' }]}>
+                        ? <View style={[s.tipoBadge, { backgroundColor:(tipo.color)+'18' }]}>
                             <Text style={[s.tipoBadgeTxt, { color:tipo.color }]}>
                               {tipo.icon} {tipo.label}
                             </Text>
                           </View>
                         : null
                     }
-                    {/* Concepto */}
-                    <Text style={{ flex:1, fontSize:12, color:C.text }} numberOfLines={1}>
+                    <Text style={{ flex:1, fontSize:12, fontWeight:'600', color:C.text }} numberOfLines={2}>
                       {cargo.concepto}
                     </Text>
-                    {/* Monto total */}
-                    <Text style={s.monto}>{formatMoneda(cargo.monto)}</Text>
-                    {/* Borrar — dos pasos */}
+                    <Text style={[s.monto, completado && { color:'#2e7d32' }]}>
+                      {formatMoneda(cargo.monto)}
+                    </Text>
                     {esBorrando ? (
-                      <ActivityIndicator size={14} color="#c62828" style={{ width:30 }}/>
+                      <ActivityIndicator size={14} color="#c62828" style={{ width:28 }}/>
                     ) : confirmarBorrarId === cargo.id ? (
                       <View style={{ flexDirection:'row', gap:4 }}>
                         <TouchableOpacity onPress={() => borrarCargo(cargo.id)}
                           style={[s.btnBorrar, { backgroundColor:'#c62828', paddingHorizontal:8 }]}>
-                          <Text style={{ fontSize:11, color:'#fff', fontWeight:'700' }}>✓ Sí</Text>
+                          <Text style={{ fontSize:11, color:'#fff', fontWeight:'700' }}>✓</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setConfirmarBorrarId(null)}
                           style={[s.btnBorrar, { backgroundColor:C.isDark?'rgba(255,255,255,0.1)':'#eee' }]}>
@@ -950,29 +988,31 @@ export default function AdminScreen() {
                       </View>
                     ) : (
                       <TouchableOpacity onPress={() => setConfirmarBorrarId(cargo.id)} style={s.btnBorrar}>
-                        <Text style={{ fontSize:14, color:'#c62828' }}>🗑</Text>
+                        <Text style={{ fontSize:13, color:'#c62828' }}>🗑</Text>
                       </TouchableOpacity>
                     )}
                   </View>
 
-                  {/* Barra de progreso + ajuste manual (solo para distribuidos) */}
+                  {/* ── Progreso (solo distribuidos) ── */}
                   {esDistribuido && (
-                    <View style={{ gap:4 }}>
-                      {/* Fila progreso + botón ajustar */}
+                    <View style={{ gap:6, marginBottom:8 }}>
+                      {/* Info cuotas + ajuste */}
                       <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
                         <Text style={{ fontSize:10, color:C.textSec }}>
                           {cobradas}/{plan} cuotas · {formatMoneda(cargo.monto_por_cuota||0)}/cuota
                         </Text>
                         <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
-                          <Text style={{ fontSize:10, fontWeight:'700',
-                            color: pct >= 100 ? '#2e7d32' : '#1565c0' }}>
-                            {pct}% cobrado
-                          </Text>
+                          <View style={[s.pctBadge, { backgroundColor: completado ? '#2e7d3220' : '#1565c015',
+                            borderColor: completado ? '#2e7d32' : '#1565c0' }]}>
+                            <Text style={{ fontSize:10, fontWeight:'800',
+                              color: completado ? '#2e7d32' : '#1565c0' }}>
+                              {pct}% {completado ? '✅' : ''}
+                            </Text>
+                          </View>
                           {ajustandoId !== cargo.id && (
                             <TouchableOpacity onPress={() => abrirAjuste(cargo)}
-                              style={{ borderWidth:1, borderColor:'#1565c0', borderRadius:4,
-                                paddingHorizontal:6, paddingVertical:2 }}>
-                              <Text style={{ fontSize:10, color:'#1565c0', fontWeight:'700' }}>
+                              style={s.btnAjustar}>
+                              <Text style={{ fontSize:10, color:C.primaryText, fontWeight:'700' }}>
                                 ✏ Ajustar
                               </Text>
                             </TouchableOpacity>
@@ -980,130 +1020,208 @@ export default function AdminScreen() {
                         </View>
                       </View>
 
-                      {/* Editor inline de cuotas cobradas */}
+                      {/* Editor inline */}
                       {ajustandoId === cargo.id && (
                         <View style={{ flexDirection:'row', alignItems:'center', gap:8,
                           backgroundColor:C.isDark?'rgba(21,101,192,0.12)':'#e8f0fe',
                           borderRadius:8, padding:8, borderWidth:1, borderColor:'#1565c0' }}>
-                          <Text style={{ fontSize:12, color:'#1565c0', fontWeight:'600' }}>
-                            Cuotas cobradas:
-                          </Text>
+                          <Text style={{ fontSize:12, color:'#1565c0', fontWeight:'600' }}>Cobradas:</Text>
                           {Platform.OS === 'web'
-                            ? <input
-                                type="number"
-                                value={ajusteValor}
-                                min={0}
-                                max={plan}
+                            ? <input type="number" value={ajusteValor} min={0} max={plan}
                                 onChange={e => setAjusteValor((e.target as any).value)}
-                                style={{ width:60, fontSize:14, fontWeight:'700', textAlign:'center',
+                                style={{ width:56, fontSize:14, fontWeight:'700', textAlign:'center',
                                   border:'1.5px solid #1565c0', borderRadius:6, padding:'4px 6px',
-                                  background:'#fff', color:'#0d47a1', outline:'none' } as any}
-                              />
+                                  background:'#fff', color:'#0d47a1', outline:'none' } as any}/>
                             : <TextInput value={ajusteValor} onChangeText={setAjusteValor}
-                                keyboardType="number-pad" mode="outlined" dense
-                                style={{ width:70 }}/>
+                                keyboardType="number-pad" mode="outlined" dense style={{ width:70 }}/>
                           }
-                          <Text style={{ fontSize:12, color:'#555' }}>de {plan}</Text>
-                          <TouchableOpacity onPress={() => guardarAjuste(cargo)}
-                            disabled={guardandoAjuste}
-                            style={{ backgroundColor:'#1565c0', borderRadius:6,
-                              paddingHorizontal:10, paddingVertical:5 }}>
+                          <Text style={{ fontSize:11, color:C.textSec }}>de {plan}</Text>
+                          <TouchableOpacity onPress={() => guardarAjuste(cargo)} disabled={guardandoAjuste}
+                            style={{ backgroundColor:'#1565c0', borderRadius:6, paddingHorizontal:10, paddingVertical:5 }}>
                             {guardandoAjuste
                               ? <ActivityIndicator size={14} color="#fff"/>
-                              : <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓ Guardar</Text>
-                            }
+                              : <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>✓</Text>}
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => setAjustandoId(null)}
-                            style={{ paddingHorizontal:6, paddingVertical:5 }}>
+                          <TouchableOpacity onPress={() => setAjustandoId(null)} style={{ padding:4 }}>
                             <Text style={{ fontSize:12, color:'#888' }}>✕</Text>
                           </TouchableOpacity>
                         </View>
                       )}
 
                       {/* Barra de progreso */}
-                      <View style={{ height:6, backgroundColor:C.isDark?'rgba(255,255,255,0.1)':'#e0e0e0',
+                      <View style={{ height:6, backgroundColor:C.isDark?'rgba(255,255,255,0.1)':'#e9ecef',
                         borderRadius:3, overflow:'hidden' }}>
                         <View style={{ height:6, borderRadius:3, width:`${pct}%` as any,
-                          backgroundColor: pct >= 100 ? '#2e7d32' : '#1565c0' }}/>
-                      </View>
-                      <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
-                        <Text style={{ fontSize:10, color:'#2e7d32' }}>
-                          Cobrado: {formatMoneda((cargo.monto_por_cuota||0) * cobradas)}
-                        </Text>
-                        <Text style={{ fontSize:10, color: pct >= 100 ? '#2e7d32' : '#e65100' }}>
-                          {pct >= 100 ? '✅ Completado' : `Pendiente: ${formatMoneda((cargo.monto_por_cuota||0) * (plan - cobradas))}`}
-                        </Text>
+                          backgroundColor: completado ? '#2e7d32' : C.primary }}/>
                       </View>
                     </View>
                   )}
-                </View>
-              );
-            })}
 
-            {/* ── Pie: total + reimprimir ── */}
-            <View style={s.grpFooter}>
-              {grp.cargos.some(c => c.tipo_cobro === 'distribuido')
-                ? (() => {
-                    const c = grp.cargos.find(c => c.tipo_cobro === 'distribuido')!;
-                    const cobradas = c.cuotas_cobradas || 0;
-                    const clienteRef = { id: grp.cliente_id, nombre: grp.cliente_nombre, dui: grp.cliente_dui };
-                    const itemsRef = c.items
-                      ? c.items.map(i => ({ concepto: i.concepto, monto: i.monto }))
-                      : [{ concepto: c.concepto, monto: c.monto }];
-                    return (
-                      <View style={{ flexDirection:'column', gap:4 }}>
-                        {/* Plan siempre visible */}
-                        <TouchableOpacity style={s.btnFactura}
+                  {/* ── BOTONES PDF — visibles para TODOS los cargos ── */}
+                  <View style={s.cargoPdfRow}>
+                    {esDistribuido ? (
+                      <>
+                        {/* Plan de cobros — siempre */}
+                        <TouchableOpacity style={s.btnCargoPdf}
                           onPress={async () => {
-                            let freq = c.prestamo_frecuencia;
-                            // Si el cargo es antiguo y no tiene frecuencia guardada, buscarla del préstamo
-                            if (!freq && c.prestamo_id) {
+                            let freq = cargo.prestamo_frecuencia;
+                            if (!freq && cargo.prestamo_id) {
                               try {
-                                const snap = await getDoc(doc(db, col('prestamos'), c.prestamo_id));
+                                const snap = await getDoc(doc(db, col('prestamos'), cargo.prestamo_id));
                                 if (snap.exists()) freq = snap.data().frecuencia as string;
                               } catch {}
                             }
                             imprimirPlanDistribucion(
-                              clienteRef, itemsRef, c.monto,
-                              c.cuotas_plan || 1, c.monto_por_cuota || 0,
-                              grp.fecha, c.cobrador_nombre, cobradas, freq,
+                              clienteRef, itemsRef, cargo.monto,
+                              plan, cargo.monto_por_cuota || 0,
+                              grp.fecha, cargo.cobrador_nombre, cobradas, freq,
                             );
                           }}>
-                          <Text style={s.btnFacturaTxt}>📋 Plan de cobros</Text>
+                          <Text style={s.btnCargoPdfTxt}>📋 Plan</Text>
                         </TouchableOpacity>
-                        {/* Factura individual solo si ya hay cuotas cobradas */}
+
+                        {/* Factura de la cuota actual — si hay cuotas cobradas */}
                         {cobradas > 0 && (
-                          <TouchableOpacity style={s.btnFactura}
+                          <TouchableOpacity style={s.btnCargoPdf}
                             onPress={() => imprimirCuotaAdmin(
-                              clienteRef, c.concepto, c.monto_por_cuota || 0,
-                              cobradas, c.cuotas_plan || 1, grp.fecha,
+                              clienteRef, cargo.concepto,
+                              cargo.monto_por_cuota || 0,
+                              cobradas, plan, grp.fecha,
                             )}>
-                            <Text style={s.btnFacturaTxt}>
-                              🖨 Factura ${(c.monto_por_cuota||0).toFixed(2)} (cuota {cobradas})
+                            <Text style={s.btnCargoPdfTxt}>
+                              🖨 Cuota {cobradas} · {formatMoneda(cargo.monto_por_cuota||0)}
                             </Text>
                           </TouchableOpacity>
                         )}
-                      </View>
-                    );
-                  })()
-                : (
-                  <TouchableOpacity style={s.btnFactura}
-                    onPress={() => imprimirFactura(
-                      { id:grp.cliente_id, nombre:grp.cliente_nombre, dui:grp.cliente_dui },
-                      grp.cargos.map(c => ({ concepto:c.concepto, monto:c.monto })),
-                      grp.fecha,
-                    )}>
-                    <Text style={s.btnFacturaTxt}>🖨 Reimprimir factura</Text>
-                  </TouchableOpacity>
-                )
-              }
+
+                        {/* Si está 100% completado → botón verde resaltado */}
+                        {completado && (
+                          <TouchableOpacity style={[s.btnCargoPdf, s.btnCargoPdfOk]}
+                            onPress={async () => {
+                              let freq = cargo.prestamo_frecuencia;
+                              if (!freq && cargo.prestamo_id) {
+                                try {
+                                  const snap = await getDoc(doc(db, col('prestamos'), cargo.prestamo_id));
+                                  if (snap.exists()) freq = snap.data().frecuencia as string;
+                                } catch {}
+                              }
+                              imprimirPlanDistribucion(
+                                clienteRef, itemsRef, cargo.monto,
+                                plan, cargo.monto_por_cuota || 0,
+                                grp.fecha, cargo.cobrador_nombre, cobradas, freq,
+                              );
+                            }}>
+                            <Text style={[s.btnCargoPdfTxt, { color:'#fff' }]}>✅ Comprobante final</Text>
+                          </TouchableOpacity>
+                        )}
+                      </>
+                    ) : (
+                      /* Cargo único → reimprimir factura */
+                      <TouchableOpacity style={[s.btnCargoPdf, completado && s.btnCargoPdfOk]}
+                        onPress={() => imprimirFactura(
+                          clienteRef,
+                          cargo.items
+                            ? cargo.items.map(i => ({ concepto: i.concepto, monto: i.monto }))
+                            : [{ concepto: cargo.concepto, monto: cargo.monto }],
+                          grp.fecha, cargo.cobrador_nombre,
+                        )}>
+                        <Text style={[s.btnCargoPdfTxt, completado && { color:'#fff' }]}>
+                          {completado ? '✅ Ver comprobante' : '🖨 Ver factura'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+            </View>
+
+            {/* ── Pie: total + botones PDF ── */}
+            <View style={s.grpFooter}>
+              <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, flex:1, marginRight:8 }}>
+                {grp.cargos.some(c => c.tipo_cobro === 'distribuido')
+                  ? (() => {
+                      const c = grp.cargos.find(c => c.tipo_cobro === 'distribuido')!;
+                      const cobradas = c.cuotas_cobradas || 0;
+                      const plan = c.cuotas_plan || 1;
+                      const pctFoot = Math.round((cobradas / plan) * 100);
+                      const clienteRef = { id: grp.cliente_id, nombre: grp.cliente_nombre, dui: grp.cliente_dui };
+                      const itemsRef = c.items
+                        ? c.items.map(i => ({ concepto: i.concepto, monto: i.monto }))
+                        : [{ concepto: c.concepto, monto: c.monto }];
+                      return (
+                        <>
+                          {/* Plan de cobros siempre visible */}
+                          <TouchableOpacity style={s.btnPdf}
+                            onPress={async () => {
+                              let freq = c.prestamo_frecuencia;
+                              if (!freq && c.prestamo_id) {
+                                try {
+                                  const snap = await getDoc(doc(db, col('prestamos'), c.prestamo_id));
+                                  if (snap.exists()) freq = snap.data().frecuencia as string;
+                                } catch {}
+                              }
+                              imprimirPlanDistribucion(
+                                clienteRef, itemsRef, c.monto,
+                                plan, c.monto_por_cuota || 0,
+                                grp.fecha, c.cobrador_nombre, cobradas, freq,
+                              );
+                            }}>
+                            <Text style={s.btnPdfTxt}>📋 Plan</Text>
+                          </TouchableOpacity>
+                          {/* Factura de cuota actual si hay cobros */}
+                          {cobradas > 0 && (
+                            <TouchableOpacity style={s.btnPdf}
+                              onPress={() => imprimirCuotaAdmin(
+                                clienteRef, c.concepto, c.monto_por_cuota || 0,
+                                cobradas, plan, grp.fecha,
+                              )}>
+                              <Text style={s.btnPdfTxt}>🖨 Cuota {cobradas}</Text>
+                            </TouchableOpacity>
+                          )}
+                          {/* Si está 100% cobrado → botón de historial completo resaltado */}
+                          {pctFoot >= 100 && (
+                            <TouchableOpacity style={[s.btnPdf, s.btnPdfCompleto]}
+                              onPress={async () => {
+                                let freq = c.prestamo_frecuencia;
+                                if (!freq && c.prestamo_id) {
+                                  try {
+                                    const snap = await getDoc(doc(db, col('prestamos'), c.prestamo_id));
+                                    if (snap.exists()) freq = snap.data().frecuencia as string;
+                                  } catch {}
+                                }
+                                imprimirPlanDistribucion(
+                                  clienteRef, itemsRef, c.monto,
+                                  plan, c.monto_por_cuota || 0,
+                                  grp.fecha, c.cobrador_nombre, cobradas, freq,
+                                );
+                              }}>
+                              <Text style={[s.btnPdfTxt, { color:'#fff' }]}>✅ Historial completo</Text>
+                            </TouchableOpacity>
+                          )}
+                        </>
+                      );
+                    })()
+                  : (
+                    <TouchableOpacity style={s.btnPdf}
+                      onPress={() => imprimirFactura(
+                        { id:grp.cliente_id, nombre:grp.cliente_nombre, dui:grp.cliente_dui },
+                        grp.cargos.map(c => ({ concepto:c.concepto, monto:c.monto })),
+                        grp.fecha,
+                      )}>
+                      <Text style={s.btnPdfTxt}>🖨 Reimprimir factura</Text>
+                    </TouchableOpacity>
+                  )
+                }
+              </View>
               <View style={s.grpTotalRow}>
                 <Text style={s.grpTotalLbl}>TOTAL</Text>
                 <Text style={s.grpTotalVal}>{formatMoneda(grp.total)}</Text>
               </View>
             </View>
           </Card>
-        )}
+          );
+        }}
         ListEmptyComponent={
           <View style={s.empty}>
             <Text style={{ fontSize:40 }}>📋</Text>
@@ -1430,10 +1548,10 @@ export default function AdminScreen() {
 
 /* ── Estilos ── */
 const makeStyles = (C: any) => StyleSheet.create({
-  container:        { flex:1, backgroundColor:C.bg, ...glassBgStyle(C) as any },
+  container:        { flex:1, backgroundColor:C.bg,  },
   center:           { flex:1, justifyContent:'center', alignItems:'center' },
   header:           { padding:16, flexDirection:'row', justifyContent:'space-between',
-                      alignItems:'center', ...glassNavyStyle() as any },
+                      alignItems:'center', backgroundColor: C.primary },
   title:            { color:'#fff', fontSize:18, fontWeight:'700' },
   subtitle:         { color:'#c8a951', fontSize:12, marginTop:2 },
   btnNuevo:         { backgroundColor:'#c8a951', borderRadius:8, paddingHorizontal:14, paddingVertical:8 },
@@ -1447,31 +1565,65 @@ const makeStyles = (C: any) => StyleSheet.create({
   filtroChipActive: { backgroundColor:C.primary, borderColor:C.primary },
   filtroTxt:        { fontSize:11, color:C.textSec, fontWeight:'600' },
   filtroTxtActive:  { color:'#fff' },
-  card:             { marginBottom:12, borderRadius:14, ...glassStyle(C) as any, overflow:'hidden' },
+  card:             { marginBottom:10, borderRadius:16, backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+                      borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+                      overflow:'hidden',
+                      ...({ boxShadow: C.isDark?'0 2px 10px rgba(0,0,0,0.3)':'0 1px 6px rgba(15,23,42,0.06)' } as any) },
+  // Expediente badge
+  expBadge:         { backgroundColor: C.isDark?'rgba(255,255,255,0.10)':C.primary+'18',
+                      borderRadius:6, paddingHorizontal:8, paddingVertical:3,
+                      borderWidth:1, borderColor: C.isDark?'rgba(255,255,255,0.15)':C.primary+'44' },
+  expBadgeTxt:      { fontSize:10, fontWeight:'800', color:C.primaryText, letterSpacing:0.5 },
   // Grupo cliente
   grpHeader:        { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
-                      paddingHorizontal:14, paddingTop:12, paddingBottom:8,
-                      borderBottomWidth:1, borderBottomColor:C.border },
-  grpTotal:         { fontSize:17, fontWeight:'900', color:C.primaryText },
+                      paddingHorizontal:14, paddingTop:12, paddingBottom:10,
+                      borderBottomWidth:1, borderBottomColor: C.isDark?'rgba(255,255,255,0.06)':'#f1f5f9',
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.02)':'#fafafa' },
+  grpTotal:         { fontSize:18, fontWeight:'900', color:C.primaryText },
   cargoRow:         { flexDirection:'row', alignItems:'center', gap:6,
-                      paddingHorizontal:14, paddingVertical:9 },
-  cargoRowBorder:   { borderBottomWidth:1, borderBottomColor: C.isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)' },
-  grpFooter:        { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
+                      paddingHorizontal:14, paddingVertical:10 },
+  cargoRowBorder:   { borderBottomWidth:1, borderBottomColor: C.isDark?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.05)' },
+  // Mini-card por cargo individual
+  cargoCard:        { borderRadius:12, padding:12,
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.04)':'#ffffff',
+                      borderWidth:1, borderColor: C.isDark?'rgba(255,255,255,0.07)':'#e9ecef',
+                      ...({ boxShadow:'0 1px 4px rgba(0,0,0,0.06)' } as any) },
+  cargoCardCompletado: { borderLeftWidth:3, borderLeftColor:'#2e7d32',
+                      backgroundColor: C.isDark?'rgba(46,125,50,0.08)':'#f1f8f1' },
+  // Fila botones PDF por cargo
+  cargoPdfRow:      { flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:2 },
+  btnCargoPdf:      { borderWidth:1, borderColor: C.isDark?'rgba(255,255,255,0.15)':C.primary+'44',
+                      borderRadius:8, paddingHorizontal:10, paddingVertical:5,
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.06)':C.primary+'0a' },
+  btnCargoPdfOk:    { backgroundColor:'#2e7d32', borderColor:'#2e7d32' },
+  btnCargoPdfTxt:   { fontSize:11, color:C.primaryText, fontWeight:'700' },
+  // Badge porcentaje + botón ajuste inline
+  pctBadge:         { borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1 },
+  btnAjustar:       { borderWidth:1, borderColor:C.primary, borderRadius:4,
+                      paddingHorizontal:6, paddingVertical:2,
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.05)':'transparent' },
+  grpFooter:        { flexDirection:'row', alignItems:'center',
                       paddingHorizontal:14, paddingVertical:10,
-                      borderTopWidth:1.5, borderTopColor:C.border,
-                      backgroundColor: C.isDark?'rgba(255,255,255,0.03)':'rgba(0,0,0,0.02)' },
-  grpTotalRow:      { flexDirection:'row', alignItems:'center', gap:8 },
-  grpTotalLbl:      { fontSize:11, fontWeight:'700', color:C.textSec, letterSpacing:0.5 },
-  grpTotalVal:      { fontSize:15, fontWeight:'900', color:'#2e7d32' },
-  tipoBadge:        { alignSelf:'flex-start', borderRadius:4, paddingHorizontal:6,
-                      paddingVertical:2 },
+                      borderTopWidth:1, borderTopColor: C.isDark?'rgba(255,255,255,0.06)':'#f1f5f9',
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.02)':'#f8fafc',
+                      flexWrap:'wrap', gap:8 },
+  grpTotalRow:      { flexDirection:'row', alignItems:'center', gap:6 },
+  grpTotalLbl:      { fontSize:10, fontWeight:'800', color:C.textMuted, letterSpacing:0.8 },
+  grpTotalVal:      { fontSize:16, fontWeight:'900', color:'#2e7d32' },
+  tipoBadge:        { alignSelf:'flex-start', borderRadius:6, paddingHorizontal:7, paddingVertical:2 },
   tipoBadgeTxt:     { fontSize:10, fontWeight:'700' },
-  clienteNom:       { fontSize:14, fontWeight:'700', color:C.text },
+  clienteNom:       { fontSize:14, fontWeight:'800', color:C.text },
   concepto:         { fontSize:12, color:C.textSec, marginTop:1 },
-  sub:              { fontSize:11, color:C.textTer, marginTop:2 },
-  monto:            { fontSize:13, fontWeight:'800', color:C.primaryText },
-  btnFactura:       { borderWidth:1, borderColor:C.border, borderRadius:6,
-                      paddingHorizontal:8, paddingVertical:5 },
+  sub:              { fontSize:11, color:C.textTer, marginTop:1 },
+  monto:            { fontSize:14, fontWeight:'900', color:C.primaryText },
+  // Botones PDF
+  btnPdf:           { borderWidth:1, borderColor:C.isDark?'rgba(255,255,255,0.12)':C.primary+'33',
+                      borderRadius:8, paddingHorizontal:10, paddingVertical:6,
+                      backgroundColor: C.isDark?'rgba(255,255,255,0.05)':C.primary+'0a' },
+  btnPdfTxt:        { fontSize:11, color:C.primaryText, fontWeight:'700' },
+  btnPdfCompleto:   { backgroundColor:'#2e7d32', borderColor:'#2e7d32' },
+  // Legacy aliases
+  btnFactura:       { borderWidth:1, borderColor:C.border, borderRadius:6, paddingHorizontal:8, paddingVertical:5 },
   btnFacturaTxt:    { fontSize:11, color:C.textSec, fontWeight:'600' },
   btnBorrar:        { minWidth:30, height:30, justifyContent:'center', alignItems:'center',
                       borderRadius:6, backgroundColor:C.isDark?'rgba(198,40,40,0.12)':'#ffebee',
@@ -1481,8 +1633,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   emptyNote:        { color:C.textTer, fontSize:12, marginTop:6, textAlign:'center' },
   // Modal
   overlay:          { flex:1, backgroundColor:'rgba(0,0,0,0.55)' },
-  modalBox:         { borderRadius:18, padding:20, ...glassStyle(C) as any,
-                      backgroundColor: C.isDark?'rgba(15,25,65,0.95)':'rgba(255,255,255,0.97)' },
+  modalBox:         { borderRadius:18, padding:20, backgroundColor: C.isDark ? '#1e293b' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' },
   modalTit:         { fontSize:16, fontWeight:'800', color:C.primaryText, marginBottom:12 },
   secLbl:           { fontSize:10, fontWeight:'700', color:C.textSec, letterSpacing:0.8,
                       textTransform:'uppercase', marginBottom:8 },

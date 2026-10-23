@@ -254,7 +254,7 @@ function _Item({ label, valor, grande, C }: { label: string; valor: string; gran
 
 /* ── Estilos ── */
 const makeStyles = (C: any) => StyleSheet.create({
-  root: { flex: 1, ...glassBgStyle(C) },
+  root: { flex: 1, backgroundColor: C.bg },
   titulo: { color: C.primaryText, fontWeight: '800', marginBottom: 14 },
 
   /* Aviso legal */
@@ -270,7 +270,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   avisoMax:  { fontWeight: '800', color: C.success },
 
   /* Panel inputs */
-  panel: { borderRadius: 16, padding: 14, marginBottom: 14, ...glassStyle(C) },
+  panel: { borderRadius: 16, padding: 14, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   input: { marginBottom: 12 },
   lbl:   { fontSize: 12, color: C.textSec, fontWeight: '600', marginBottom: 8 },
   frecRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
@@ -287,7 +287,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   alertaTxt: { fontSize: 12, color: C.danger, lineHeight: 18, fontWeight: '600' },
 
   /* Resultado */
-  resultado: { borderRadius: 16, padding: 16, marginBottom: 14, ...glassStyle(C) },
+  resultado: { borderRadius: 16, padding: 16, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   resultTit: { fontSize: 12, fontWeight: '700', color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 14 },
   resultGrid: { gap: 0 },
 
@@ -300,7 +300,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   badgeTxt: { fontSize: 12, fontWeight: '700', lineHeight: 18 },
 
   /* Tabla */
-  tabla: { borderRadius: 14, padding: 14, marginBottom: 14, ...glassStyle(C) },
+  tabla: { borderRadius: 14, padding: 14, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   tablaTit: { fontSize: 12, fontWeight: '700', color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10 },
   tablaFila: { flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 4 },
   tablaHead: { borderBottomWidth: 1, borderBottomColor: C.border, marginBottom: 2 },

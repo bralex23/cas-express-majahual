@@ -399,7 +399,7 @@ export default function NuevoCliente() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:{flex:1, ...w(glassBgStyle(C))},
+  container:{flex:1, backgroundColor:C.bg},
   titulo:{color:C.primaryText,fontWeight:'800',marginBottom:16},
   fotoSection:{flexDirection:'row',gap:12,marginBottom:16,alignItems:'center'},
   fotoBox:{width:100,height:130,borderRadius:8,overflow:'hidden',borderWidth:2,borderColor:C.primary,borderStyle:'dashed'},
@@ -408,7 +408,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   fotoIcon:{fontSize:30},
   fotoTxt:{fontSize:11,color:C.textTer,marginTop:4},
   fotoBtns:{flex:1},
-  formPanel:{borderRadius:16, padding:12, marginBottom:12, ...glassStyle(C)},
+  formPanel:{borderRadius:16, padding:12, marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0'},
   input:{marginBottom:12},
   label:{fontSize:13,color:C.textSec,marginBottom:8,fontWeight:'600'},
   rutasRow:{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:16},

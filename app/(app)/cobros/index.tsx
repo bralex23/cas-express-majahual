@@ -502,7 +502,7 @@ export default function Cobros() {
     });
     const numRec = Date.now().toString().slice(-6);
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Cargo Admin CAS Express</title>
+<title>Cargo Admin CAS Tamanique</title>
 <style>
   @page{size:80mm auto;margin:4mm}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -564,7 +564,7 @@ export default function Cobros() {
     });
     const numRec = Date.now().toString().slice(-6);
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Recibo CAS Express</title>
+<title>Recibo CAS Tamanique</title>
 <style>
   @page{size:80mm auto;margin:4mm}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -1259,24 +1259,28 @@ ${dteGuardado ? `<div class="dte-badge">🏛️ DTE en cola: ${dteGuardado}</div
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:    {flex:1, backgroundColor:C.bg, ...w(glassBgStyle(C))},
+  container:    {flex:1, backgroundColor:C.bg},
   center:       {flex:1, justifyContent:'center', alignItems:'center'},
-  header:       {padding:16, flexDirection:'row', justifyContent:'space-between', alignItems:'center',
-                 ...glassNavyStyle()},
-  fecha:        {color:'#fff', fontSize:18, fontWeight:'700'},
-  totalTxt:     {color:'#c8a951', fontSize:13},
+  header:       {paddingHorizontal:20, paddingVertical:14, flexDirection:'row',
+                 justifyContent:'space-between', alignItems:'center',
+                 backgroundColor: C.primary,
+                 ...w({ boxShadow:`0 2px 12px ${C.primary}44` })},
+  fecha:        {color:'#fff', fontSize:17, fontWeight:'800'},
+  totalTxt:     {color:'rgba(255,255,255,0.80)', fontSize:13, marginTop:1},
   tabRow:       {flexDirection:'row', borderBottomWidth:1,
-                 borderBottomColor: C.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.6)',
-                 backgroundColor: C.isDark ? 'rgba(20,30,70,0.50)' : 'rgba(255,255,255,0.55)',
-                 backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)'} as any,
-  tabBtn:       {flex:1, paddingVertical:12, alignItems:'center'},
-  tabActive:    {borderBottomWidth:3, borderBottomColor:C.primaryText},
+                 borderBottomColor: C.isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+                 backgroundColor: C.isDark ? '#161f30' : '#ffffff'} as any,
+  tabBtn:       {flex:1, paddingVertical:13, alignItems:'center'},
+  tabActive:    {borderBottomWidth:3, borderBottomColor:C.primary},
   tabTxt:       {fontSize:13, color:C.textTer, fontWeight:'600'},
-  tabTxtActive: {color:C.primaryText},
-  card:         {marginBottom:10, borderRadius:14, ...glassStyle(C)},
+  tabTxtActive: {color:C.primary, fontWeight:'700'},
+  card:         {marginBottom:10, borderRadius:20,
+                 backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+                 borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+                 ...w({ boxShadow: C.isDark ? '0 2px 12px rgba(0,0,0,0.3)' : '0 2px 8px rgba(15,23,42,0.04)' })},
   cardContent:  {flexDirection:'row', justifyContent:'space-between', alignItems:'center', gap:8},
   cardInfo:     {flex:1, minWidth:0},
-  clienteNom:   {fontSize:15, fontWeight:'700', color:C.text, flexShrink:1},
+  clienteNom:   {fontSize:15, fontWeight:'800', color:C.text, flexShrink:1},
   expTxt:       {fontSize:11, color:C.textMuted, marginTop:1},
   sub:          {fontSize:12, color:C.textTer, marginTop:1},
   moraT:        {fontSize:12, color:C.danger, marginTop:2, fontWeight:'600'},
@@ -1284,33 +1288,35 @@ const makeStyles = (C: any) => StyleSheet.create({
   abonoTxt:     {fontSize:12, color:C.warning, marginTop:2, fontWeight:'600'},
   saldoLbl:     {fontSize:11, color:C.textMuted},
   cardRight:    {alignItems:'flex-end'},
-  monto:        {fontSize:18, fontWeight:'800', color:C.primaryText},
-  btn:          {backgroundColor:C.primary, borderRadius:8, paddingHorizontal:14, paddingVertical:8, marginTop:6},
+  monto:        {fontSize:18, fontWeight:'800', color:C.primary},
+  btn:          {backgroundColor:C.primary, borderRadius:12, paddingHorizontal:16, paddingVertical:9, marginTop:6},
   btnRojo:      {backgroundColor:C.danger},
   btnTxt:       {color:'#fff', fontWeight:'700'},
   empty:        {alignItems:'center', padding:40},
   emptyTxt:     {color:C.textMuted, fontSize:15, marginTop:8},
-  estadoPago:   {fontSize:12, fontWeight:'700', marginBottom:4, paddingHorizontal:8, paddingVertical:4, borderRadius:6},
-  estadoCompleto:{color:C.success, backgroundColor:C.isDark?'#1b2e1b':'#e8f5e9'},
-  estadoAbono:  {color:C.warning, backgroundColor:C.isDark?'#2e2414':'#fff3e0'},
+  estadoPago:   {fontSize:12, fontWeight:'700', marginBottom:4, paddingHorizontal:10, paddingVertical:5, borderRadius:20},
+  estadoCompleto:{color:C.success, backgroundColor:C.isDark?'#1b2e1b':'#dcfce7'},
+  estadoAbono:  {color:C.warning, backgroundColor:C.isDark?'#2e2414':'#fef9c3'},
   // Modal
   overlay:      {flex:1, backgroundColor:'rgba(0,0,0,0.55)', justifyContent:'center', padding:24},
-  modalBox:     {borderRadius:18, padding:20, ...glassStyle(C),
-                 backgroundColor: C.isDark ? 'rgba(15,25,65,0.92)' : 'rgba(255,255,255,0.96)'},
-  modalTit:     {fontSize:16, fontWeight:'800', color:C.primaryText, marginBottom:4},
+  modalBox:     {borderRadius:24, padding:22,
+                 backgroundColor: C.isDark ? '#1e293b' : '#ffffff',
+                 borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0',
+                 ...w({ boxShadow: C.isDark ? '0 24px 64px rgba(0,0,0,0.6)' : '0 24px 64px rgba(15,23,42,0.12)' })},
+  modalTit:     {fontSize:16, fontWeight:'800', color:C.primary, marginBottom:4},
   modalCliente: {fontSize:15, fontWeight:'700', color:C.text, marginBottom:2},
   modalSub:     {fontSize:12, color:C.danger, marginBottom:14},
   modalRow:     {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10},
   modalLbl:     {fontSize:14, color:C.textSec},
   modalVal:     {fontSize:15, fontWeight:'700', color:C.text},
   switchRow:    {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12, gap:8},
-  modalTotLbl:  {fontSize:14, fontWeight:'700', color:C.primaryText},
-  modalTotVal:  {fontSize:18, fontWeight:'800', color:C.primaryText},
+  modalTotLbl:  {fontSize:14, fontWeight:'700', color:C.primary},
+  modalTotVal:  {fontSize:18, fontWeight:'800', color:C.primary},
   modalBtns:    {flexDirection:'row', gap:10},
   // Desglose amortización
-  desgloseBox:  {backgroundColor: C.isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                 borderRadius:10, padding:12, marginBottom:12,
-                 borderLeftWidth:3, borderLeftColor:C.primaryText},
+  desgloseBox:  {backgroundColor: C.isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc',
+                 borderRadius:14, padding:14, marginBottom:12,
+                 borderLeftWidth:3, borderLeftColor:C.primary},
   desgloseTitle:{fontSize:9, fontWeight:'800', color:C.textTer, letterSpacing:0.8,
                  textTransform:'uppercase', marginBottom:8},
   desgloseRow:  {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:5},

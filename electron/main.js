@@ -4,6 +4,7 @@ const path2 = require('path');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const http  = require('http');
+const https = require('https');
 
 const isDev   = !app.isPackaged;
 const EXPO_URL = 'http://localhost:8083';
@@ -50,7 +51,7 @@ function createWindow() {
     backgroundColor: '#070c1e',
     show: false,
     icon: path.join(__dirname, '../assets/icon.ico'),
-    title: 'CAS Express — Majahual',
+    title: 'CAS Express — Tamanique',
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -84,19 +85,19 @@ function createWindow() {
   if (isDev) {
     // Muestra pantalla de espera mientras Expo bundlea
     win.loadURL(`data:text/html,
-      <html><body style="background:#0a2463;display:flex;flex-direction:column;align-items:center;
+      <html><body style="background:#1e293b;display:flex;flex-direction:column;align-items:center;
         justify-content:center;height:100vh;margin:0;font-family:Arial,sans-serif;color:white">
-        <h2 style="font-size:28px;margin-bottom:8px">CAS Express</h2>
-        <p style="color:#aaa;font-size:14px">Iniciando servidor... por favor espera</p>
-        <div style="margin-top:20px;width:40px;height:40px;border:4px solid #ffffff44;
-          border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite"></div>
+        <h2 style="font-size:26px;margin-bottom:8px;color:#93c5fd">CAS Express</h2>
+        <p style="color:#94a3b8;font-size:13px">Iniciando servidor de desarrollo...</p>
+        <div style="margin-top:20px;width:36px;height:36px;border:3px solid #334155;
+          border-top-color:#60a5fa;border-radius:50%;animation:spin 0.9s linear infinite"></div>
         <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
       </body></html>`);
     // Espera a que Expo responda y carga la app
     waitForExpo(win);
     // win.webContents.openDevTools({ mode: 'detach' }); // desactivado
   } else {
-    // Producción: sirve el bundle estático
+    // ── PRODUCCIÓN: carga desde el bundle local empaquetado ──────────────
     serveApp(win);
   }
 
@@ -1889,7 +1890,8 @@ function removeDownloadOverlay() {
 /* ── Auto-updater eventos ── */
 autoUpdater.on('error', (err) => {
   removeDownloadOverlay();
-  showUpdateDialog('error', { message: err.message || String(err) });
+  // Solo loguear — no mostrar diálogo al usuario por errores de red/actualización
+  console.warn('CAS Tamanique: autoUpdater error (silenciado):', err.message || String(err));
 });
 
 autoUpdater.on('update-available', (info) => {
@@ -1897,7 +1899,7 @@ autoUpdater.on('update-available', (info) => {
 });
 
 autoUpdater.on('update-not-available', () => {
-  console.log('CAS Majahual: ya está en la versión más reciente.');
+  console.log('CAS Tamanique: ya está en la versión más reciente.');
 });
 
 autoUpdater.on('download-progress', (progress) => {
@@ -1908,7 +1910,7 @@ autoUpdater.on('download-progress', (progress) => {
 autoUpdater.on('update-downloaded', () => {
   if (mainWindow) {
     mainWindow.setProgressBar(-1);
-    mainWindow.setTitle('CAS Express — Majahual');
+    mainWindow.setTitle('CAS Express — Tamanique');
   }
   removeDownloadOverlay();
   showUpdateDialog('downloaded');

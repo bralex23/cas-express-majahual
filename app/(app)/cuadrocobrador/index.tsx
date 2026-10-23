@@ -9,7 +9,7 @@ import { useFocusEffect } from 'expo-router';
 import { db } from '../../../src/lib/firebase';
 import { useEmpresa } from '../../../src/context/empresa';
 import { useAuth } from '../../../src/hooks/useAuth';
-import { useColors, glassStyle } from '../../../src/theme';
+import { useColors } from '../../../src/theme';
 const w = (s: any) => s;
 import { formatMoneda, hoy } from '../../../src/utils/calculos';
 
@@ -279,7 +279,7 @@ export default function CuadroCobrador() {
     <ScrollView style={s.root} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
 
       {/* ── Cabecera: cobrador, ruta, mes ─────────────────────── */}
-      <Card style={[s.card, glassStyle(C.isDark)]}>
+      <Card style={[s.card, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <Card.Content style={{ gap: 10 }}>
           <View style={s.row2}>
             <TextInput label="Cobrador" value={cobrador} onChangeText={setCobrador}
@@ -311,7 +311,7 @@ export default function CuadroCobrador() {
       </Card>
 
       {/* ── Cartera y mora ───────────────────────────────────── */}
-      <Card style={[s.card, glassStyle(C.isDark)]}>
+      <Card style={[s.card, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <Card.Content style={{ gap: 10 }}>
           <Text style={[s.secLabel, { color: C.textSub }]}>CARTERA</Text>
           <View style={s.row2}>
@@ -335,7 +335,7 @@ export default function CuadroCobrador() {
       </Card>
 
       {/* ── Resumen ──────────────────────────────────────────── */}
-      <Card style={[s.card, glassStyle(C.isDark)]}>
+      <Card style={[s.card, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <Card.Content>
           <Text style={[s.secLabel, { color: C.textSub, marginBottom: 10 }]}>RESUMEN AUTO-CALCULADO</Text>
           <View style={s.resumeGrid}>
@@ -350,7 +350,7 @@ export default function CuadroCobrador() {
       </Card>
 
       {/* ── Tabla Q1 + Q2 ───────────────────────────────────── */}
-      <Card style={[s.card, glassStyle(C.isDark)]}>
+      <Card style={[s.card, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <Card.Content style={{ gap: 0 }}>
           {/* Encabezados */}
           <View style={s.tableHdr}>
@@ -466,7 +466,7 @@ export default function CuadroCobrador() {
 
       {/* ── Historial guardado ────────────────────────────────── */}
       {(historial.length > 0 || cargandoHist) && (
-        <Card style={[s.card, glassStyle(C.isDark)]}>
+        <Card style={[s.card, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
           <Card.Content>
             <Text style={[s.secLabel, { color: C.textSub, marginBottom: 8 }]}>
               GUARDADOS EN SISTEMA — {MESES_LABEL[mes - 1].toUpperCase()} {anio}
@@ -521,7 +521,11 @@ function makeStyles(C: any) {
   return StyleSheet.create({
     root:    { flex: 1, backgroundColor: C.bg },
     content: { padding: 14, gap: 12, paddingBottom: 40 },
-    card:    { borderRadius: 12 },
+    card:    {
+      borderRadius: 20,
+      backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+      borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+    },
     row2:    { flexDirection: 'row', gap: 10 },
     secLabel:{ fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
 

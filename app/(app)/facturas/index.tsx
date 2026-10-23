@@ -401,15 +401,15 @@ export default function Facturas() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:   { flex: 1, ...w(glassBgStyle(C)) },
+  container:   { flex: 1, backgroundColor: C.bg },
   titulo:      { fontSize: 18, fontWeight: '800', color: C.primaryText },
   mesNav:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                 borderRadius: 12, padding: 12, marginBottom: 12, ...glassStyle(C) },
+                 borderRadius: 12, padding: 12, marginBottom: 12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   mesBtn:      { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center',
                  backgroundColor: C.surfaceCard },
   mesTxt:      { fontSize: 15, fontWeight: '700', color: C.primaryText },
-  resumen:     { flexDirection: 'row', borderRadius: 12, padding: 16, marginBottom: 12,
-                 ...glassStyle(C) },
+  resumen:     { flexDirection: 'row', borderRadius: 16, padding: 16, marginBottom: 12,
+                 backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   resumenLbl:  { fontSize: 11, color: C.textTer, textTransform: 'uppercase', marginBottom: 4 },
   resumenVal:  { fontSize: 22, fontWeight: '800', color: C.primaryText },
   empty:       { alignItems: 'center', gap: 10, paddingVertical: 48 },

@@ -2,17 +2,27 @@
  * PinLock — pantalla de seguridad PIN de 4 dígitos.
  * - Se activa al abrir la app
  * - Se reactiva tras 1 hora de inactividad
- * - Soporta autenticación biométrica (huella/face) vía WebAuthn
+ * - Soporta autenticación biométrica (huella/face) vía @aparajita/capacitor-biometric-auth
  *   (solo en móvil Capacitor, no en escritorio Electron)
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform, Animated } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { isAndroidApp } from '../lib/biometric';
+import { useColors } from '../theme';
+
+/* ── Helper: reloj en vivo ─────────────────────────────────────────────── */
+function useClock() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
 
 const PIN_KEY      = 'cas_pin_hash';
-const BIO_CRED_KEY = 'cas_bio_cred';    // base64 credential ID
 const BIO_ON_KEY   = 'cas_bio_on';       // '1' si biometría activada
 const TIMEOUT_MS   = 60 * 60 * 1000;    // 1 hora
 const PIN_LENGTH   = 4;
@@ -39,75 +49,45 @@ function isCapacitor(): boolean {
   return typeof window !== 'undefined' && !!(window as any).Capacitor;
 }
 
-/* ── WebAuthn helpers (solo en Capacitor/móvil) ────────────────────────── */
+/* ── Biometría nativa via @aparajita/capacitor-biometric-auth ─────────── */
 
-/** Comprueba si el dispositivo tiene autenticador biométrico de plataforma */
 async function checkBioAvailable(): Promise<boolean> {
   try {
-    if (!window.PublicKeyCredential) return false;
-    return await (PublicKeyCredential as any).isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!isAndroidApp()) return false;
+    const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
+    const result = await BiometricAuth.checkBiometry();
+    return result.isAvailable ?? false;
   } catch { return false; }
 }
 
-/** Registra una nueva credencial biométrica en el dispositivo */
-async function registrarBio(): Promise<boolean> {
+async function autenticarBio(): Promise<boolean> {
   try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const userId    = crypto.getRandomValues(new Uint8Array(16));
-
-    const cred = await navigator.credentials.create({
-      publicKey: {
-        challenge,
-        rp:   { name: 'CAS Express', id: 'localhost' },
-        user: { id: userId, name: 'cas_user', displayName: 'CAS Express' },
-        pubKeyCredParams: [
-          { alg: -7,   type: 'public-key' }, // ES256
-          { alg: -257, type: 'public-key' }, // RS256
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: 'platform',
-          userVerification: 'required',
-          residentKey: 'preferred',
-        },
-        timeout: 60000,
-      },
-    }) as PublicKeyCredential | null;
-
-    if (!cred) return false;
-
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-    try {
-      localStorage.setItem(BIO_CRED_KEY, b64);
-      localStorage.setItem(BIO_ON_KEY,   '1');
-    } catch {}
+    const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
+    await BiometricAuth.authenticate({
+      reason: 'Verifica tu identidad para acceder',
+      cancelTitle: 'Cancelar',
+      allowDeviceCredential: true,
+    } as any);
     return true;
   } catch (e) {
-    console.warn('[Bio] register error:', e);
+    console.warn('[Bio] auth error:', e);
     return false;
   }
 }
 
-/** Autentica con la credencial biométrica registrada */
-async function autenticarBio(): Promise<boolean> {
+async function registrarBio(): Promise<boolean> {
+  // Con capacitor-biometric-auth no hay registro previo — autenticar una vez para confirmar
   try {
-    const b64 = localStorage.getItem(BIO_CRED_KEY);
-    if (!b64) return false;
-
-    const credId    = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-
-    const assertion = await navigator.credentials.get({
-      publicKey: {
-        challenge,
-        allowCredentials: [{ id: credId, type: 'public-key' }],
-        userVerification: 'required',
-        timeout: 60000,
-      },
-    });
-
-    return !!assertion;
+    const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
+    await BiometricAuth.authenticate({
+      reason: 'Confirma tu huella para activarla',
+      cancelTitle: 'Cancelar',
+      allowDeviceCredential: false,
+    } as any);
+    try { localStorage.setItem(BIO_ON_KEY, '1'); } catch {}
+    return true;
   } catch (e) {
-    console.warn('[Bio] auth error:', e);
+    console.warn('[Bio] register error:', e);
     return false;
   }
 }
@@ -116,6 +96,7 @@ interface Props { children: React.ReactNode; }
 type Mode = 'locked' | 'setup' | 'confirm' | 'unlocked';
 
 export function PinLock({ children }: Props) {
+  const C = useColors();
   const storedHash = getStored();
   const [mode, setMode]       = useState<Mode>(storedHash ? 'locked' : 'setup');
   const [input, setInput]     = useState('');
@@ -128,12 +109,49 @@ export function PinLock({ children }: Props) {
   const [bioAvailable, setBioAvailable] = useState(false);
   const [bioEnabled,   setBioEnabled]   = useState(false);
   const [bioLoading,   setBioLoading]   = useState(false);
-  const [showBioSetup, setShowBioSetup] = useState(false); // modal tras desbloquear con PIN
+  const [showBioSetup, setShowBioSetup] = useState(false);
 
-  // PIN solo en escritorio (Electron/navegador web) — en Android se usa el sistema nativo
-  const isPinEnabled = Platform.OS === 'web' && !isAndroidApp();
+  // PIN en escritorio (Electron) Y en Android (Capacitor)
+  const isPinEnabled = Platform.OS === 'web';
 
-  // ── Chequeo inicial biometría (solo móvil) ──────────────────────────────
+  // Estilos dinámicos según tema
+  const D = useMemo(() => {
+    const dark = C.isDark;
+    return {
+      rootBg: dark ? '#070d1b' : '#f0f4ff',
+      rootGrad: dark
+        ? 'linear-gradient(160deg, #0d1526 0%, #070d1b 60%, #0a1020 100%)'
+        : 'linear-gradient(160deg, #eff6ff 0%, #f8fafc 60%, #f1f5f9 100%)',
+      logoCircleBg:   dark ? 'rgba(0,212,176,0.10)' : '#eff6ff',
+      logoCircleBdr:  dark ? 'rgba(0,212,176,0.30)' : '#bfdbfe',
+      logoIconColor:  dark ? '#00d4b0' : '#2563eb',
+      logoShadow:     dark ? '0 4px 20px rgba(0,212,176,0.18)' : '0 4px 20px rgba(37,99,235,0.12)',
+      titleColor:     dark ? '#f1f5f9' : '#0f172a',
+      subtitleColor:  dark ? '#94a3b8' : '#64748b',
+      dotBdr:         dark ? 'rgba(255,255,255,0.18)' : '#cbd5e1',
+      dotFilledBg:    C.primary,
+      keyBg:          dark ? 'rgba(16,30,58,0.92)' : '#ffffff',
+      keyBdr:         dark ? 'rgba(255,255,255,0.10)' : '#e2e8f0',
+      keyShadow:      dark
+        ? '0 2px 8px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)'
+        : '0 2px 8px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)',
+      keyTxtColor:    dark ? '#f1f5f9' : '#0f172a',
+      keyDelBg:       dark ? 'rgba(220,38,38,0.15)' : '#fff1f2',
+      keyDelBdr:      dark ? 'rgba(220,38,38,0.30)' : '#fecdd3',
+      bioBtnBg:       dark ? 'rgba(0,212,176,0.09)' : '#eff6ff',
+      bioBtnBdr:      dark ? 'rgba(0,212,176,0.25)' : '#bfdbfe',
+      bioShadow:      dark ? '0 2px 8px rgba(0,212,176,0.12)' : '0 2px 8px rgba(37,99,235,0.10)',
+      bioTxtColor:    dark ? '#00d4b0' : '#2563eb',
+      resetTxtColor:  dark ? 'rgba(148,163,184,0.55)' : '#94a3b8',
+      bioBoxBg:       dark ? '#111c35' : '#ffffff',
+      bioBoxBdr:      dark ? 'rgba(255,255,255,0.10)' : '#e2e8f0',
+      bioBoxShadow:   dark ? '0 16px 48px rgba(0,0,0,0.6)' : '0 16px 48px rgba(15,23,42,0.18)',
+      bioTitleColor:  dark ? '#f1f5f9' : '#0f172a',
+      bioDescColor:   dark ? '#94a3b8' : '#64748b',
+    };
+  }, [C]);
+
+  // ── Chequeo inicial biometría ──────────────────────────────────────────
   useEffect(() => {
     if (!isPinEnabled || !isCapacitor()) return;
     checkBioAvailable().then(ok => {
@@ -141,9 +159,22 @@ export function PinLock({ children }: Props) {
       if (ok) {
         const on = !!localStorage.getItem(BIO_ON_KEY);
         setBioEnabled(on);
+        // Auto-trigger huella si ya estaba activada
+        if (on && storedHash) {
+          setTimeout(() => triggerBioAuto(), 600);
+        }
       }
     });
   }, [isPinEnabled]);
+
+  async function triggerBioAuto() {
+    setBioLoading(true);
+    try {
+      const ok = await autenticarBio();
+      if (ok) unlock(true);
+    } catch {}
+    finally { setBioLoading(false); }
+  }
 
   // ── Timer inactividad ───────────────────────────────────────────────────
   const resetTimer = useCallback(() => {
@@ -169,7 +200,7 @@ export function PinLock({ children }: Props) {
 
   if (!isPinEnabled) return <>{children}</>;
 
-  // ── Shake animation ─────────────────────────────────────────────────────
+  // ── Shake ─────────────────────────────────────────────────────────────
   const doShake = () => {
     shakeAnim.setValue(0);
     Animated.sequence([
@@ -182,64 +213,46 @@ export function PinLock({ children }: Props) {
     ]).start();
   };
 
-  // ── Desbloquear con PIN ─────────────────────────────────────────────────
+  // ── Desbloquear ─────────────────────────────────────────────────────────
   function unlock(fromBio = false) {
     setMode('unlocked');
     setInput('');
     setError('');
     resetTimer();
-    // Ofrecer configurar huella si acaba de desbloquear con PIN y no tiene huella
     if (!fromBio && bioAvailable && !bioEnabled && isCapacitor()) {
       setShowBioSetup(true);
     }
   }
 
-  // ── Autenticar con huella ───────────────────────────────────────────────
+  // ── Huella ──────────────────────────────────────────────────────────────
   async function usarHuella() {
     setBioLoading(true);
     setError('');
     try {
       const ok = await autenticarBio();
-      if (ok) {
-        unlock(true);
-      } else {
-        setError('Huella no reconocida');
-      }
-    } catch {
-      setError('Error al leer huella');
-    } finally {
-      setBioLoading(false);
-    }
+      if (ok) { unlock(true); } else { setError('Huella no reconocida'); }
+    } catch { setError('Error al leer huella'); }
+    finally  { setBioLoading(false); }
   }
 
-  // ── Registrar huella (desde modal post-desbloqueo) ──────────────────────
   async function configurarHuella() {
     setBioLoading(true);
     try {
       const ok = await registrarBio();
-      if (ok) {
-        setBioEnabled(true);
-        setShowBioSetup(false);
-      } else {
-        setError('No se pudo registrar la huella');
-      }
-    } catch {
-      setError('Error al registrar huella');
-    } finally {
-      setBioLoading(false);
-    }
+      if (ok) { setBioEnabled(true); setShowBioSetup(false); }
+      else    { setError('No se pudo registrar la huella'); }
+    } catch { setError('Error al registrar huella'); }
+    finally { setBioLoading(false); }
   }
 
-  // ── Quitar huella ───────────────────────────────────────────────────────
   function quitarHuella() {
     try {
-      localStorage.removeItem(BIO_CRED_KEY);
       localStorage.removeItem(BIO_ON_KEY);
       setBioEnabled(false);
     } catch {}
   }
 
-  // ── Teclado numérico ────────────────────────────────────────────────────
+  // ── Teclado ─────────────────────────────────────────────────────────────
   const handleDigit = (d: string) => {
     if (d === '⌫') { setInput(p => p.slice(0, -1)); setError(''); return; }
     if (input.length >= PIN_LENGTH) return;
@@ -273,7 +286,7 @@ export function PinLock({ children }: Props) {
     }
   };
 
-  // ── Soporte de teclado físico (escritorio) ─────────────────────────────
+  // ── Teclado físico (escritorio) ──────────────────────────────────────────
   useEffect(() => {
     if (!isPinEnabled || mode === 'unlocked') return;
     const onKey = (e: KeyboardEvent) => {
@@ -284,30 +297,34 @@ export function PinLock({ children }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [mode, input, confirm, isPinEnabled]);
 
-  // ── App desbloqueada ────────────────────────────────────────────────────
+  // ── App desbloqueada ──────────────────────────────────────────────────────
   if (mode === 'unlocked') {
     return (
       <View style={{ flex: 1 }}>
         {children}
 
-        {/* Modal "¿Activar huella?" (solo si se desbloqueó con PIN y es móvil) */}
+        {/* Modal "¿Activar huella?" */}
         {showBioSetup && (
           <View style={p.bioModal}>
-            <View style={p.bioBox}>
-              <MaterialCommunityIcons name="fingerprint" size={48} color="#c8a951" style={{ marginBottom: 12 }}/>
-              <Text style={p.bioTitle}>¿Activar huella digital?</Text>
-              <Text style={p.bioDesc}>
-                Podrás desbloquear CAS Express con tu huella dactilar en vez del PIN.
+            <View style={[p.bioBox, {
+              backgroundColor: D.bioBoxBg,
+              borderColor: D.bioBoxBdr,
+              ...({ boxShadow: D.bioBoxShadow } as any),
+            }]}>
+              <MaterialCommunityIcons name="fingerprint" size={52} color={D.bioTxtColor} style={{ marginBottom: 12 }}/>
+              <Text style={[p.bioTitle, { color: D.bioTitleColor }]}>¿Activar huella digital?</Text>
+              <Text style={[p.bioDesc, { color: D.bioDescColor }]}>
+                Desbloquea CAS Express con tu huella dactilar en lugar del PIN.
               </Text>
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
                 <TouchableOpacity onPress={() => setShowBioSetup(false)}
-                  style={[p.bioBtn, { borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]}>
-                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontWeight: '600' }}>Ahora no</Text>
+                  style={[p.bioBtn, { borderColor: D.bioBoxBdr, borderWidth: 1 }]}>
+                  <Text style={{ color: D.subtitleColor, fontWeight: '600' }}>Ahora no</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={configurarHuella}
                   disabled={bioLoading}
-                  style={[p.bioBtn, { backgroundColor: '#c8a951' }]}>
-                  <Text style={{ color: '#060f2f', fontWeight: '800' }}>
+                  style={[p.bioBtn, { backgroundColor: D.logoIconColor }]}>
+                  <Text style={{ color: '#ffffff', fontWeight: '800' }}>
                     {bioLoading ? 'Registrando...' : 'Activar'}
                   </Text>
                 </TouchableOpacity>
@@ -316,7 +333,7 @@ export function PinLock({ children }: Props) {
           </View>
         )}
 
-        {/* Botón "Quitar huella" accesible desde app (esquina inferior) solo móvil */}
+        {/* Botón quitar huella — esquina inferior, solo móvil */}
         {bioEnabled && isCapacitor() && !showBioSetup && (
           <TouchableOpacity onPress={quitarHuella} style={p.bioRemove}>
             <MaterialCommunityIcons name="fingerprint-off" size={18} color="rgba(200,169,81,0.5)"/>
@@ -326,60 +343,103 @@ export function PinLock({ children }: Props) {
     );
   }
 
-  // ── Pantalla de PIN ─────────────────────────────────────────────────────
-  const title = mode === 'setup' ? 'Configura tu PIN de seguridad'
+  // ── Textos de modo ───────────────────────────────────────────────────────
+  const title = mode === 'setup' ? 'Configura tu PIN'
     : mode === 'confirm' ? 'Confirma tu PIN'
     : 'Ingresa tu PIN';
   const subtitle = mode === 'setup' ? 'Elige 4 dígitos para proteger la app'
     : mode === 'confirm' ? 'Escribe el mismo PIN otra vez'
     : 'La app está bloqueada';
 
-  return (
-    <View style={p.root}>
-      {/* Logo */}
-      <View style={p.logoArea}>
-        <View style={p.logoCircle}>
-          <MaterialCommunityIcons name="shield-lock" size={40} color="#c8a951"/>
-        </View>
-        <Text style={p.appName}>CAS Express</Text>
-        <Text style={p.title}>{title}</Text>
-        <Text style={p.subtitle}>{subtitle}</Text>
+  const isDesktop = Platform.OS === 'web' && !isAndroidApp();
+
+  /* ── Keypad compartido ── */
+  const KeypadSection = () => (
+    <View style={{ alignItems: 'center' }}>
+      {/* Ícono candado */}
+      <View style={[p.logoCircle, {
+        backgroundColor: D.logoCircleBg,
+        borderColor: D.logoCircleBdr,
+        ...({ boxShadow: D.logoShadow } as any),
+      }]}>
+        <MaterialCommunityIcons name="shield-lock" size={36} color={D.logoIconColor}/>
       </View>
 
-      {/* Puntos indicadores */}
+      {/* Título */}
+      <Text style={[p.title, { color: D.titleColor }]}>{title}</Text>
+      <Text style={[p.subtitle, { color: D.subtitleColor }]}>{subtitle}</Text>
+
+      {/* Puntos PIN */}
       <Animated.View style={[p.dots, { transform: [{ translateX: shakeAnim }] }]}>
         {Array.from({ length: PIN_LENGTH }, (_, i) => (
-          <View key={i} style={[p.dot, i < input.length && p.dotFilled]}/>
+          <View key={i} style={[
+            p.dot,
+            { borderColor: D.dotBdr },
+            i < input.length && {
+              backgroundColor: D.dotFilledBg,
+              borderColor: D.dotFilledBg,
+              ...({ boxShadow: `0 0 10px ${D.dotFilledBg}66` } as any),
+            },
+          ]}/>
         ))}
       </Animated.View>
 
       {/* Error */}
-      {error ? <Text style={p.error}>{error}</Text> : <View style={{ height: 20 }}/>}
+      {error
+        ? <Text style={p.error}>{error}</Text>
+        : <View style={{ height: 20 }}/>
+      }
 
       {/* Teclado numérico */}
       <View style={p.pad}>
         {DIGITS.map((d, i) => {
           if (d === '') return <View key={i} style={p.padEmpty}/>;
+          const isDel = d === '⌫';
           return (
-            <TouchableOpacity key={i} style={[p.key, d === '⌫' && p.keyDel]}
-              onPress={() => handleDigit(d)} activeOpacity={0.7}>
-              <Text style={[p.keyTxt, d === '⌫' && p.keyDelTxt]}>{d}</Text>
+            <TouchableOpacity
+              key={i}
+              style={[p.key, {
+                backgroundColor: isDel ? D.keyDelBg : D.keyBg,
+                borderColor:     isDel ? D.keyDelBdr : D.keyBdr,
+                ...({ boxShadow: D.keyShadow } as any),
+              }]}
+              onPress={() => handleDigit(d)}
+              activeOpacity={0.70}
+            >
+              <Text style={[p.keyTxt, {
+                color: isDel ? '#ef4444' : D.keyTxtColor,
+                fontSize: isDel ? 20 : 24,
+              }]}>
+                {d}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* Botón huella (solo en locked + móvil + huella activada) */}
-      {mode === 'locked' && bioEnabled && isCapacitor() && (
-        <TouchableOpacity onPress={usarHuella} disabled={bioLoading}
-          style={p.bioButton}>
+      {/* Huella */}
+      {mode === 'locked' && bioAvailable && isCapacitor() && (
+        <TouchableOpacity
+          onPress={bioEnabled ? usarHuella : configurarHuella}
+          disabled={bioLoading}
+          style={[p.bioButton, {
+            backgroundColor: D.bioBtnBg,
+            borderColor: D.bioBtnBdr,
+            ...({ boxShadow: D.bioShadow } as any),
+          }]}
+        >
           <MaterialCommunityIcons
             name="fingerprint"
             size={38}
-            color={bioLoading ? 'rgba(200,169,81,0.4)' : '#c8a951'}
+            color={bioLoading ? `${D.bioTxtColor}55` : D.bioTxtColor}
           />
-          <Text style={p.bioTxt}>
-            {bioLoading ? 'Verificando...' : 'Usar huella digital'}
+          <Text style={[p.bioTxt, { color: D.bioTxtColor }]}>
+            {bioLoading
+              ? 'Verificando...'
+              : bioEnabled
+                ? 'Usar huella digital'
+                : 'Activar huella digital'
+            }
           </Text>
         </TouchableOpacity>
       )}
@@ -388,106 +448,248 @@ export function PinLock({ children }: Props) {
       {mode === 'locked' && (
         <TouchableOpacity
           onPress={() => { setMode('setup'); setInput(''); setError(''); }}
-          style={p.resetBtn}>
-          <Text style={p.resetTxt}>¿Olvidaste tu PIN? Restablecer</Text>
+          style={p.resetBtn}
+        >
+          <Text style={[p.resetTxt, { color: D.resetTxtColor }]}>
+            ¿Olvidaste tu PIN? Restablecer
+          </Text>
         </TouchableOpacity>
       )}
     </View>
   );
+
+  /* ── Layout DESKTOP: 2 columnas ── */
+  if (isDesktop) {
+    return <PinSplitLayout KeypadSection={KeypadSection} D={D}/>;
+  }
+
+  /* ── Layout MÓVIL: columna única con fondo oscuro ── */
+  return (
+    <View style={[p.root, {
+      backgroundColor: D.rootBg,
+      ...({ backgroundImage: D.rootGrad } as any),
+    }]}>
+      <KeypadSection/>
+    </View>
+  );
 }
+
+/* ══════════════════════════════════════════════════════════════
+   SPLIT LAYOUT — solo desktop (Electron)
+   ══════════════════════════════════════════════════════════════ */
+function PinSplitLayout({ KeypadSection, D }: { KeypadSection: React.FC; D: any }) {
+  const now = useClock();
+  const C = useColors();
+
+  const hora = now.toLocaleTimeString('es-SV', {
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+  const fecha = now.toLocaleDateString('es-SV', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+  const fechaFmt = fecha.charAt(0).toUpperCase() + fecha.slice(1);
+
+  return (
+    <View style={sp.root}>
+      {/* ── Columna izquierda: Hero card ── */}
+      <View style={sp.heroCol}>
+        <View style={sp.badge}>
+          <MaterialCommunityIcons name="briefcase-check" size={14} color="#93c5fd"/>
+          <Text style={sp.badgeTxt}>CAS Express Tamanique</Text>
+        </View>
+
+        <Text style={sp.clock}>{hora}</Text>
+        <Text style={sp.date}>{fechaFmt}</Text>
+
+        <View style={sp.sep}/>
+
+        <View style={sp.infoCard}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <MaterialCommunityIcons name="shield-check-outline" size={18} color="#93c5fd"/>
+            <Text style={sp.infoLabel}>Sistema protegido</Text>
+          </View>
+          <View style={sp.progressBar}>
+            <View style={[sp.progressFill, { width: '78%' }]}/>
+          </View>
+          <Text style={sp.infoSub}>Sesión segura · Autenticación local</Text>
+        </View>
+
+        <View style={sp.heroFoot}>
+          <View style={sp.heroAvatar}>
+            <MaterialCommunityIcons name="account-circle" size={22} color="#93c5fd"/>
+          </View>
+          <View>
+            <Text style={sp.heroUser}>CAS Express</Text>
+            <Text style={sp.heroRole}>Sistema de Gestión Financiera</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Columna derecha: keypad ── */}
+      <View style={[sp.keypadCol, {
+        backgroundColor: D.rootBg,
+        ...({ backgroundImage: D.rootGrad } as any),
+      }]}>
+        <KeypadSection/>
+      </View>
+    </View>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+//   ESTILOS ESTÁTICOS (colores dinámicos se pasan inline)
+// ══════════════════════════════════════════════════════════════
 
 const p = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#060f2f',
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 40,
-    ...({
-      backgroundImage: 'linear-gradient(160deg, #0a2463 0%, #060f2f 60%, #0a1a3a 100%)',
-    } as any),
   },
-  logoArea: { alignItems: 'center', marginBottom: 36 },
+
   logoCircle: {
     width: 80, height: 80, borderRadius: 40,
-    backgroundColor: 'rgba(200,169,81,0.15)',
-    borderWidth: 1.5, borderColor: 'rgba(200,169,81,0.4)',
+    borderWidth: 2,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 14,
-    ...({ boxShadow: '0 0 30px rgba(200,169,81,0.25)' } as any),
+    marginBottom: 16,
   },
-  appName: { color: '#c8a951', fontSize: 22, fontWeight: '800', letterSpacing: 1 },
-  title:   { color: '#fff', fontSize: 16, fontWeight: '700', marginTop: 6 },
-  subtitle:{ color: 'rgba(200,220,255,0.6)', fontSize: 13, marginTop: 4 },
 
-  dots: { flexDirection: 'row', gap: 16, marginBottom: 8 },
+  title: {
+    fontSize: 18, fontWeight: '800',
+    marginTop: 4, textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 13, marginTop: 4,
+    textAlign: 'center',
+  },
+
+  dots: { flexDirection: 'row', gap: 16, marginTop: 28, marginBottom: 8 },
   dot: {
-    width: 14, height: 14, borderRadius: 7,
-    borderWidth: 2, borderColor: 'rgba(200,169,81,0.5)',
+    width: 16, height: 16, borderRadius: 8,
+    borderWidth: 2,
     backgroundColor: 'transparent',
   },
-  dotFilled: {
-    backgroundColor: '#c8a951', borderColor: '#c8a951',
-    ...({ boxShadow: '0 0 8px #c8a951' } as any),
-  },
-  error: { color: '#ef5350', fontSize: 13, fontWeight: '600', height: 20 },
+  error: { color: '#ef4444', fontSize: 13, fontWeight: '600', height: 20, marginTop: 4 },
 
   pad: {
     flexDirection: 'row', flexWrap: 'wrap',
-    width: 260, marginTop: 24, gap: 14,
+    width: 264, marginTop: 20, gap: 12,
     justifyContent: 'center',
   },
   key: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    width: 76, height: 76, borderRadius: 20,
+    borderWidth: 1,
     justifyContent: 'center', alignItems: 'center',
-    ...({ boxShadow: '0 2px 8px rgba(0,0,0,0.3)' } as any),
   },
-  keyDel: { backgroundColor: 'rgba(198,40,40,0.25)', borderColor: 'rgba(198,40,40,0.35)' },
-  keyTxt: { color: '#fff', fontSize: 24, fontWeight: '600' },
-  keyDelTxt: { color: '#ef9a9a', fontSize: 20 },
-  padEmpty: { width: 72, height: 72 },
+  keyTxt:    { fontWeight: '600' },
+  padEmpty:  { width: 76, height: 76 },
 
-  // Botón huella (en pantalla locked)
   bioButton: {
-    marginTop: 24, alignItems: 'center', padding: 12,
+    marginTop: 20, alignItems: 'center', padding: 14,
     borderRadius: 16,
-    backgroundColor: 'rgba(200,169,81,0.08)',
-    borderWidth: 1, borderColor: 'rgba(200,169,81,0.25)',
-    minWidth: 160,
+    borderWidth: 1,
+    minWidth: 168,
   },
-  bioTxt: {
-    color: 'rgba(200,169,81,0.85)', fontSize: 13, marginTop: 4, fontWeight: '600',
-  },
+  bioTxt: { fontSize: 13, marginTop: 5, fontWeight: '600' },
 
-  resetBtn: { marginTop: 16, padding: 8 },
-  resetTxt: { color: 'rgba(200,169,81,0.7)', fontSize: 13, textDecorationLine: 'underline' },
+  resetBtn: { marginTop: 14, padding: 8 },
+  resetTxt: { fontSize: 13, textDecorationLine: 'underline' },
 
-  // Modal de configuración biométrica
   bioModal: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(6,15,47,0.92)',
+    backgroundColor: 'rgba(7,13,27,0.75)',
     justifyContent: 'center', alignItems: 'center',
     zIndex: 100,
   } as any,
   bioBox: {
-    backgroundColor: '#0a1a3a',
-    borderRadius: 20, padding: 28,
+    borderRadius: 24, padding: 28,
     marginHorizontal: 32,
     alignItems: 'center',
-    borderWidth: 1, borderColor: 'rgba(200,169,81,0.3)',
-    ...({ boxShadow: '0 8px 40px rgba(0,0,0,0.5)' } as any),
+    borderWidth: 1,
   },
-  bioTitle: { color: '#fff', fontSize: 17, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
-  bioDesc:  { color: 'rgba(200,220,255,0.7)', fontSize: 13, textAlign: 'center', lineHeight: 19 },
+  bioTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  bioDesc:  { fontSize: 13, textAlign: 'center', lineHeight: 20 },
   bioBtn: {
     flex: 1, paddingVertical: 12, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center',
   },
-
-  // Botón quitar huella (esquina inferior izquierda, invisible hasta que el user busca)
   bioRemove: {
     position: 'absolute', bottom: 8, left: 8, padding: 6, zIndex: 50,
   } as any,
+});
+
+const sp = StyleSheet.create({
+  root: {
+    flex: 1,
+    flexDirection: 'row',
+    backgroundColor: '#0f172a',
+  },
+  heroCol: {
+    flex: 1,
+    backgroundColor: '#1e3a5f',
+    justifyContent: 'center',
+    padding: 48,
+    ...({
+      backgroundImage: 'linear-gradient(145deg, #1d4ed8 0%, #1e3a5f 55%, #0f172a 100%)',
+    } as any),
+  },
+  badge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
+    alignSelf: 'flex-start', marginBottom: 40,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+  },
+  badgeTxt: { color: '#93c5fd', fontSize: 12, fontWeight: '600' },
+  clock: {
+    color: '#ffffff',
+    fontSize: 72, fontWeight: '800',
+    letterSpacing: -2, lineHeight: 80,
+  },
+  date: {
+    color: '#93c5fd', fontSize: 15, fontWeight: '500',
+    marginTop: 8, marginBottom: 36,
+  },
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginBottom: 28,
+  },
+  infoCard: {
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 16, padding: 18,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)',
+    marginBottom: 'auto' as any,
+  },
+  infoLabel: { color: '#cbd5e1', fontSize: 13, fontWeight: '600' },
+  progressBar: {
+    height: 6, borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    marginBottom: 8, overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%' as any, borderRadius: 3,
+    backgroundColor: '#60a5fa',
+  },
+  infoSub: { color: 'rgba(148,163,184,0.8)', fontSize: 11, marginTop: 2 },
+  heroFoot: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginTop: 36, paddingTop: 24,
+    borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  heroAvatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+  heroUser: { color: '#f1f5f9', fontSize: 14, fontWeight: '700' },
+  heroRole: { color: '#64748b', fontSize: 11, marginTop: 2 },
+  keypadCol: {
+    width: 420,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
 });

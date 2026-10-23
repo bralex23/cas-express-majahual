@@ -77,8 +77,51 @@ export default function RootLayout() {
 
   if (!fontReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#051208' }}>
-        <ActivityIndicator size="large" color="#69f0ae" />
+      <View style={{
+        flex: 1, justifyContent: 'center', alignItems: 'center',
+        backgroundColor: '#003875',
+        ...(Platform.OS === 'web' ? {
+          backgroundImage: 'linear-gradient(145deg, #005f99 0%, #003875 50%, #001535 100%)',
+        } : {}),
+      } as any}>
+        {/* Logo card */}
+        <View style={{
+          backgroundColor: 'rgba(255,255,255,0.10)',
+          borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+          borderRadius: 24, padding: 32, alignItems: 'center',
+          ...(Platform.OS === 'web' ? {
+            backdropFilter: 'blur(20px)',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.35)',
+          } : {}),
+        } as any}>
+          <View style={{
+            width: 80, height: 80, borderRadius: 40,
+            backgroundColor: 'rgba(130,207,255,0.15)',
+            borderWidth: 1.5, borderColor: 'rgba(130,207,255,0.4)',
+            justifyContent: 'center', alignItems: 'center', marginBottom: 16,
+          }}>
+            <View style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color="#82cfff" />
+            </View>
+          </View>
+          <View style={{ alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 2 }}>
+              <View style={{ width: 20, height: 3, borderRadius: 2, backgroundColor: '#82cfff', opacity: 0.9 }}/>
+              <View style={{ width: 8, height: 3, borderRadius: 2, backgroundColor: '#82cfff', opacity: 0.5 }}/>
+              <View style={{ width: 4, height: 3, borderRadius: 2, backgroundColor: '#82cfff', opacity: 0.3 }}/>
+            </View>
+          </View>
+        </View>
+        <View style={{ marginTop: 24, alignItems: 'center', gap: 6 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={{
+                width: 6, height: 6, borderRadius: 3,
+                backgroundColor: 'rgba(130,207,255,' + (0.8 - i * 0.25) + ')',
+              }}/>
+            ))}
+          </View>
+        </View>
       </View>
     );
   }

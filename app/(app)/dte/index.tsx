@@ -523,10 +523,10 @@ export default function ColaDTEScreen() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:   { flex: 1, backgroundColor: C.bg, ...glassBgStyle(C) as any },
+  container:   { flex: 1, backgroundColor: C.bg,  },
   center:      { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header:      { padding: 16, flexDirection: 'row', justifyContent: 'space-between',
-                 alignItems: 'center', ...glassNavyStyle() as any },
+                 alignItems: 'center', backgroundColor: C.primary },
   title:       { color: '#fff', fontSize: 18, fontWeight: '700' },
   subtitle:    { color: '#c8a951', fontSize: 12, marginTop: 2 },
   filtrosRow:  { flexDirection: 'row', padding: 10, gap: 6, flexWrap: 'wrap',
@@ -552,7 +552,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   badgeAdvertencia:{ backgroundColor:'#e65100', borderRadius:4, paddingHorizontal:6, paddingVertical:2,
                      marginBottom:6, alignSelf:'flex-start' },
   badgeTxt:        { color:'#fff', fontSize:9, fontWeight:'700' },
-  card:        { marginBottom: 10, borderRadius: 12, ...glassStyle(C) as any },
+  card:        { marginBottom: 10, borderRadius: 16, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   clienteNom:  { fontSize: 14, fontWeight: '700', color: C.text },
   sub:         { fontSize: 11, color: C.textSec, marginTop: 2 },
   control:     { fontSize: 9, color: C.textTer, marginTop: 2, fontFamily: Platform.OS==='web'?'monospace':undefined },
@@ -585,7 +585,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   emptyNote:   { color: C.textTer, fontSize: 12, marginTop: 6, textAlign: 'center' },
   // Modal
   overlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
-  modalBox:    { borderRadius: 18, padding: 20, ...glassStyle(C) as any,
+  modalBox:    { borderRadius: 18, padding: 20, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
                  backgroundColor: C.isDark ? 'rgba(15,25,65,0.95)' : 'rgba(255,255,255,0.97)' },
   modalTit:    { fontSize: 16, fontWeight: '800', color: C.primaryText, marginBottom: 12 },
   detalleRow:  { flexDirection: 'row', justifyContent: 'space-between',

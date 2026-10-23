@@ -14,13 +14,13 @@ jobs:
       - name: Descargar codigo
         uses: actions/checkout@v4
 
-      - name: Instalar Node.js 18
+      - name: Instalar Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Instalar dependencias
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Aplicar parche expo-router
         run: node scripts/patch-expo-router.js

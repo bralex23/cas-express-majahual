@@ -492,7 +492,7 @@ function _Card({ label, valor, color, C }: { label: string; valor: number; color
    ESTILOS
 ════════════════════════════════════════════════════════════════ */
 const makeStyles = (C: any) => StyleSheet.create({
-  root:     { flex: 1, ...glassBgStyle(C) },
+  root:     { flex: 1, backgroundColor: C.bg },
   header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   titulo:   { color: C.primaryText, fontWeight: '800' },
   subtitulo:{ fontSize: 11, color: C.textSec, marginTop: 2 },
@@ -503,7 +503,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   mesBtnTxt:{ fontSize: 22, color: C.text, fontWeight: '700', lineHeight: 26 },
   mesLabel: { fontSize: 18, fontWeight: '800', color: C.primaryText, minWidth: 160, textAlign: 'center' },
 
-  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, ...glassStyle(C) },
+  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   panelTit: { fontSize: 12, fontWeight: '700', color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   vacio:    { fontSize: 13, color: C.textTer, textAlign: 'center', paddingVertical: 10 },
   nota:     { fontSize: 11, color: C.textTer, marginTop: 8, lineHeight: 16 },

@@ -430,72 +430,111 @@ export default function DetallePrestamo() {
 
   const COLOR: Record<string,string> = { activo:'#1565c0', mora:'#c62828', completado:'#2e7d32', cancelado:'#666' };
 
+  const progreso = Math.min(100, Math.round((pagadas / (prestamo.plazo || 1)) * 100));
+  const ESTADO_COL = COLOR[prestamo.estado] || '#666';
+
   return (
-    <ScrollView style={s.container} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView style={s.container} contentContainerStyle={{ padding: 12, gap: 12 }}>
 
-      {/* ── Resumen ── */}
-      <Card style={s.card} elevation={2}>
-        <Card.Content>
-          <View style={s.row}>
-            <View style={{flex:1}}>
-              <Text style={s.nombreCliente}>{prestamo.cliente?.nombre || 'Cliente'}</Text>
-              {prestamo.cliente?.numero_expediente && (
-                <Text style={s.expediente}>📋 Exp: {prestamo.cliente.numero_expediente}</Text>
-              )}
+      {/* ── HERO CARD ── */}
+      <View style={s.heroCard}>
+        {/* Header row: nombre + estado + acciones */}
+        <View style={s.heroTop}>
+          <View style={{flex:1, marginRight:8}}>
+            <Text style={s.heroNombre} numberOfLines={2}>{prestamo.cliente?.nombre || 'Cliente'}</Text>
+            {prestamo.cliente?.numero_expediente && (
+              <Text style={s.heroExp}>📋 Exp: {prestamo.cliente.numero_expediente}</Text>
+            )}
+          </View>
+          <View style={{flexDirection:'row', alignItems:'center', gap:6}}>
+            <View style={[s.estadoBadge, { backgroundColor: ESTADO_COL + '22', borderColor: ESTADO_COL + '44' }]}>
+              <Text style={[s.estadoBadgeTxt, { color: ESTADO_COL }]}>{prestamo.estado.toUpperCase()}</Text>
             </View>
-            <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
-              <View style={[s.badge,{backgroundColor:(COLOR[prestamo.estado]||'#666')+'22'}]}>
-                <Text style={[s.badgeTxt,{color:COLOR[prestamo.estado]||'#666'}]}>
-                  {prestamo.estado.toUpperCase()}
-                </Text>
-              </View>
-              <TouchableOpacity style={s.editIconBtn} onPress={cargar}>
-                <MaterialCommunityIcons name="refresh" size={18} color={C.primaryText}/>
+            <TouchableOpacity style={s.iconCircle} onPress={cargar}>
+              <MaterialCommunityIcons name="refresh" size={16} color={C.primaryText}/>
+            </TouchableOpacity>
+            {isSupervisor && (
+              <TouchableOpacity style={s.iconCircle} onPress={abrirEditar}>
+                <MaterialCommunityIcons name="pencil" size={16} color={C.primaryText}/>
               </TouchableOpacity>
-              {isSupervisor && (
-                <TouchableOpacity style={s.editIconBtn} onPress={abrirEditar}>
-                  <MaterialCommunityIcons name="pencil" size={18} color={C.primaryText}/>
-                </TouchableOpacity>
-              )}
+            )}
+          </View>
+        </View>
+
+        {/* Monto principal + progreso */}
+        <View style={s.heroAmounts}>
+          {/* Monto */}
+          <View style={s.heroAmountCol}>
+            <Text style={s.heroAmountLbl}>MONTO PRESTADO</Text>
+            <Text style={s.heroAmountVal}>{formatMoneda(prestamo.monto)}</Text>
+            <Text style={s.heroAmountSub}>Total: {formatMoneda(prestamo.monto_total)}</Text>
+          </View>
+          {/* Saldo */}
+          <View style={s.heroAmountCol}>
+            <Text style={s.heroAmountLbl}>SALDO PENDIENTE</Text>
+            <Text style={[s.heroAmountVal, { color: saldoPendiente > 0 ? C.danger : C.success }]}>
+              {formatMoneda(saldoPendiente)}
+            </Text>
+            <Text style={s.heroAmountSub}>Cobrado: {formatMoneda(totalCobrado)}</Text>
+          </View>
+          {/* Progreso ring */}
+          <View style={s.heroProg}>
+            <View style={s.heroProgRing}>
+              <Text style={s.heroProgPct}>{progreso}%</Text>
+              <Text style={s.heroProgLbl}>pagado</Text>
             </View>
           </View>
+        </View>
 
-          <Divider style={{ marginVertical: 10 }}/>
-          <View style={s.statsRow}>
-            <StatBox label="Monto"      valor={formatMoneda(prestamo.monto)}      />
-            <StatBox label="Interés"    valor={`${prestamo.interes}%`}            />
-            <StatBox label="Total"      valor={formatMoneda(prestamo.monto_total)} />
-          </View>
-          <View style={s.statsRow}>
-            <StatBox label="Cuota"      valor={formatMoneda(prestamo.cuota)} color={C.primaryText}/>
-            <StatBox label="Frecuencia" valor={(prestamo.frecuencia || 'semanal').toUpperCase()} />
-            <StatBox label="Plazo"      valor={`${prestamo.plazo} cuotas`}        />
-          </View>
-          <Divider style={{ marginVertical: 10 }}/>
-          <View style={s.statsRow}>
-            <StatBox label="Pagadas"    valor={String(pagadas)}   color={C.success}/>
-            <StatBox label="Atrasadas"  valor={String(atrasadas)} color={C.danger}/>
-            <StatBox label="Mora total" valor={formatMoneda(moraTot)} color={C.warning}/>
-          </View>
-          <Divider style={{ marginVertical: 10 }}/>
-          <View style={s.statsRow}>
-            <StatBox label="Total cobrado"   valor={formatMoneda(totalCobrado)}   color={C.success}/>
-            <StatBox label="Saldo pendiente" valor={formatMoneda(saldoPendiente)} color={C.danger}/>
-            <StatBox label="Próximo cobro"
-              valor={proximaCuota ? formatFecha(proximaCuota.fecha_vencimiento) : '—'} color={C.primaryText}/>
-          </View>
-          <View style={s.statsRow}>
-            <StatBox label="Día de cobro"
-              valor={proximaCuota ? diaSemana(proximaCuota.fecha_vencimiento) : '—'} />
-            <StatBox label="De un total de"  valor={formatMoneda(prestamo.monto_total)} color={C.textSec}/>
-            <View style={{flex:1}}/>
-          </View>
-        </Card.Content>
-      </Card>
+        {/* Barra de progreso */}
+        <View style={s.progBarBg}>
+          <View style={[s.progBarFill, { width: `${progreso}%` as any, backgroundColor: progreso >= 100 ? C.success : C.primary }]}/>
+        </View>
 
-      {/* ── Botones de acción ── */}
-      <Card style={[s.card, {marginBottom:12}]} elevation={2}>
-        <Card.Content>
+        {/* Info pills row */}
+        <View style={s.heroPills}>
+          <View style={s.heroPill}><MaterialCommunityIcons name="cash" size={12} color={C.primaryText}/><Text style={s.heroPillTxt}>Cuota {formatMoneda(prestamo.cuota)}</Text></View>
+          <View style={s.heroPill}><MaterialCommunityIcons name="calendar-sync" size={12} color={C.primaryText}/><Text style={s.heroPillTxt}>{(prestamo.frecuencia||'semanal').toUpperCase()}</Text></View>
+          <View style={s.heroPill}><MaterialCommunityIcons name="format-list-numbered" size={12} color={C.primaryText}/><Text style={s.heroPillTxt}>{prestamo.plazo} cuotas</Text></View>
+          <View style={s.heroPill}><MaterialCommunityIcons name="percent" size={12} color={C.primaryText}/><Text style={s.heroPillTxt}>{prestamo.interes}%</Text></View>
+        </View>
+      </View>
+
+      {/* ── STATS GRID 2×3 ── */}
+      <View style={s.statsGrid}>
+        <View style={[s.statChip, { borderLeftColor: C.success }]}>
+          <Text style={s.statChipVal}>{pagadas}</Text>
+          <Text style={s.statChipLbl}>Pagadas</Text>
+        </View>
+        <View style={[s.statChip, { borderLeftColor: C.danger }]}>
+          <Text style={[s.statChipVal, { color: C.danger }]}>{atrasadas}</Text>
+          <Text style={s.statChipLbl}>Atrasadas</Text>
+        </View>
+        <View style={[s.statChip, { borderLeftColor: C.warning }]}>
+          <Text style={[s.statChipVal, { color: C.warning }]}>{formatMoneda(moraTot)}</Text>
+          <Text style={s.statChipLbl}>Mora total</Text>
+        </View>
+        <View style={[s.statChip, { borderLeftColor: C.primaryText }]}>
+          <Text style={[s.statChipVal, { color: C.primaryText }]}>
+            {proximaCuota ? formatFecha(proximaCuota.fecha_vencimiento) : '—'}
+          </Text>
+          <Text style={s.statChipLbl}>Próximo cobro</Text>
+        </View>
+        <View style={[s.statChip, { borderLeftColor: C.primaryText }]}>
+          <Text style={[s.statChipVal, { color: C.primaryText }]}>
+            {proximaCuota ? diaSemana(proximaCuota.fecha_vencimiento) : '—'}
+          </Text>
+          <Text style={s.statChipLbl}>Día cobro</Text>
+        </View>
+        <View style={[s.statChip, { borderLeftColor: '#64748b' }]}>
+          <Text style={s.statChipVal}>{formatMoneda(prestamo.monto_total)}</Text>
+          <Text style={s.statChipLbl}>Total a pagar</Text>
+        </View>
+      </View>
+
+      {/* ── DOCUMENTOS / ACCIONES ── */}
+      <View style={s.sectionCard}>
+        <Text style={s.sectionLbl}>DOCUMENTOS</Text>
           {/* Fila 1: documentos principales */}
           <View style={s.accionGrid}>
             <TouchableOpacity style={[s.accionBtn,{backgroundColor:'rgba(66,165,245,0.15)'}]} onPress={generarPDF} disabled={pdfLoading}>
@@ -561,17 +600,14 @@ export default function DetallePrestamo() {
           </View>
 
           {pdfLoading && <ActivityIndicator size="small" color={C.primary} style={{marginTop:8}}/>}
-        </Card.Content>
-      </Card>
+      </View>
 
       {/* ── Observaciones ── */}
       {prestamo.observaciones ? (
-        <Card style={[s.card,{backgroundColor:'#fffde7'}]} elevation={0}>
-          <Card.Content>
-            <Text style={{fontSize:12,color:'#f57f17',fontWeight:'700',marginBottom:4}}>📝 OBSERVACIONES</Text>
-            <Text style={{fontSize:13,color:'#555'}}>{prestamo.observaciones}</Text>
-          </Card.Content>
-        </Card>
+        <View style={[s.sectionCard, { borderLeftWidth: 4, borderLeftColor: '#f59e0b' }]}>
+          <Text style={{ fontSize: 11, color: '#f59e0b', fontWeight: '800', letterSpacing: 0.5, marginBottom: 6 }}>📝 OBSERVACIONES</Text>
+          <Text style={{ fontSize: 13, color: C.textSec, lineHeight: 20 }}>{prestamo.observaciones}</Text>
+        </View>
       ) : null}
 
       {/* ── Calendario de pagos ── */}
@@ -1019,75 +1055,135 @@ function StatBox({ label, valor, color }: { label:string; valor:string; color?:s
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:      {flex:1, ...w(glassBgStyle(C))},
-  center:         {flex:1, justifyContent:'center', alignItems:'center'},
-  card:           {borderRadius:12, marginBottom:12, ...glassStyle(C)},
-  row:            {flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'},
-  nombreCliente:  {fontSize:18, fontWeight:'800', color:C.text},
-  expediente:     {fontSize:12, color:C.textTer, marginTop:2},
-  badge:          {paddingHorizontal:10, paddingVertical:4, borderRadius:12},
-  badgeTxt:       {fontSize:11, fontWeight:'700'},
-  editIconBtn:    {width:34, height:34, borderRadius:17, backgroundColor:C.surfaceCard,
-                   justifyContent:'center', alignItems:'center'},
-  statsRow:       {flexDirection:'row', justifyContent:'space-around', marginBottom:4},
-  secTit:         {fontSize:14, fontWeight:'700', color:C.text, marginBottom:8, textTransform:'uppercase'},
-  cuotaCard:      {marginBottom:6, borderRadius:10, borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'},
-  cuotaContent:   {flexDirection:'row', alignItems:'center', paddingVertical:8},
-  cuotaLeft:      {width:68},
-  cuotaNum:       {fontSize:14, fontWeight:'700', color:C.primaryText},
-  cuotaFecha:     {fontSize:11, color:C.textTer},
-  cuotaMid:       {flex:1, paddingHorizontal:8},
-  cuotaMonto:     {fontSize:14, fontWeight:'700', color:C.text},
-  cuotaMora:      {fontSize:11, color:C.danger},
-  cuotaMulta:     {fontSize:10, color:C.warning, fontWeight:'700'},
-  pagadaFecha:    {fontSize:10, color:C.success},
-  pagadaMulta:    {fontSize:10, color:C.warning},
-  checkIcon:      {fontSize:20},
-  pagarBtn:       {backgroundColor:C.primary, borderRadius:8, paddingHorizontal:12, paddingVertical:6},
-  pagarTxt:       {color:'#fff', fontWeight:'700', fontSize:13},
-  borrarPagoBtn:  {backgroundColor:C.surfaceAlt, borderRadius:6, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:C.danger},
-  borrarPagoTxt:  {color:C.danger, fontSize:11, fontWeight:'600'},
-  overlay:        {flex:1, backgroundColor:'rgba(0,0,0,0.72)', justifyContent:'flex-end'},
-  modalBox:       {...(glassNavyStyle() as any), borderTopLeftRadius:20, borderTopRightRadius:20,
-                   borderTopWidth:1, borderTopColor:'rgba(200,169,81,0.28)',
-                   borderLeftWidth:1, borderLeftColor:'rgba(255,255,255,0.1)',
-                   borderRightWidth:1, borderRightColor:'rgba(255,255,255,0.1)',
-                   padding:20},
-  modalTit:       {fontSize:16, fontWeight:'800', color:'#c8a951', marginBottom:4},
-  modalSubtit:    {fontSize:13, color:C.textTer, marginBottom:16},
-  modalRow:       {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10},
-  modalLbl:       {fontSize:14, color:C.textSec},
-  modalVal:       {fontSize:15, fontWeight:'700', color:C.text},
-  switchRow:      {flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12},
-  modalTotLbl:    {fontSize:14, fontWeight:'700', color:C.primaryText},
-  modalTotVal:    {fontSize:18, fontWeight:'800', color:C.primaryText},
-  modalBtns:      {flexDirection:'row', gap:10},
-  modalScroll:    {...(glassNavyStyle() as any), borderTopLeftRadius:20, borderTopRightRadius:20,
-                   borderTopWidth:1, borderTopColor:'rgba(200,169,81,0.28)',
-                   borderLeftWidth:1, borderLeftColor:'rgba(255,255,255,0.1)',
-                   borderRightWidth:1, borderRightColor:'rgba(255,255,255,0.1)',
-                   maxHeight:'95%'},
-  modalScrollContent: {padding:20, paddingBottom:40},
-  input:          {marginBottom:12},
-  label:          {fontSize:13, color:C.textSec, fontWeight:'600', marginBottom:8},
-  optsRow:        {flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:14},
-  optBtn:         {borderWidth:1, borderColor:C.border, borderRadius:20, paddingHorizontal:14, paddingVertical:6},
-  optBtnSel:      {backgroundColor:C.primary, borderColor:C.primary},
-  optTxt:         {fontSize:13, color:C.textSec},
-  optTxtSel:      {color:'#fff'},
-  previewBox:     {flexDirection:'row', gap:10, backgroundColor:C.surfaceCard, borderRadius:10,
-                   padding:12, marginBottom:14},
-  previewItem:    {flex:1, alignItems:'center'},
-  previewLbl:     {fontSize:11, color:C.textSec},
-  previewVal:     {fontSize:16, fontWeight:'800', color:C.primaryText},
-  errorBox:       {backgroundColor:C.surfaceAlt, borderRadius:8, padding:10, marginTop:6, borderLeftWidth:3, borderLeftColor:C.danger},
-  errorTxt:       {color:C.danger, fontSize:13},
+  container:      { flex:1, backgroundColor: C.bg },
+  center:         { flex:1, justifyContent:'center', alignItems:'center' },
+
+  // ── Hero Card ──────────────────────────────────────────────
+  heroCard: {
+    borderRadius: 24, padding: 20, marginBottom: 0,
+    backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+    borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+    ...({ boxShadow: C.isDark ? '0 4px 24px rgba(0,0,0,0.4)' : '0 4px 16px rgba(15,23,42,0.07)' } as any),
+  },
+  heroTop:        { flexDirection:'row', alignItems:'flex-start', marginBottom:16 },
+  heroNombre:     { fontSize:17, fontWeight:'900', color:C.text, letterSpacing:-0.3 },
+  heroExp:        { fontSize:11, color:C.textMuted, marginTop:3 },
+  estadoBadge:    { paddingHorizontal:10, paddingVertical:4, borderRadius:20, borderWidth:1 },
+  estadoBadgeTxt: { fontSize:10, fontWeight:'800', letterSpacing:0.5 },
+  iconCircle:     { width:32, height:32, borderRadius:16, backgroundColor:C.isDark?'rgba(255,255,255,0.08)':C.surfaceCard,
+                    justifyContent:'center', alignItems:'center' },
+  heroAmounts:    { flexDirection:'row', alignItems:'flex-start', marginBottom:14, gap:8 },
+  heroAmountCol:  { flex:1 },
+  heroAmountLbl:  { fontSize:9, fontWeight:'700', color:C.textMuted, letterSpacing:0.8, textTransform:'uppercase', marginBottom:2 },
+  heroAmountVal:  { fontSize:20, fontWeight:'900', color:C.text, letterSpacing:-0.5 },
+  heroAmountSub:  { fontSize:10, color:C.textMuted, marginTop:1 },
+  heroProg:       { alignItems:'center', justifyContent:'center', width:70 },
+  heroProgRing:   {
+    width:64, height:64, borderRadius:32,
+    backgroundColor: C.isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9',
+    justifyContent:'center', alignItems:'center',
+    borderWidth:3, borderColor:C.primary,
+  },
+  heroProgPct:    { fontSize:16, fontWeight:'900', color:C.primary },
+  heroProgLbl:    { fontSize:8, color:C.textMuted, fontWeight:'700', letterSpacing:0.3 },
+  progBarBg:      { height:6, borderRadius:3, backgroundColor:C.isDark?'rgba(255,255,255,0.06)':'#f1f5f9', marginBottom:14, overflow:'hidden' },
+  progBarFill:    { height:6, borderRadius:3 },
+  heroPills:      { flexDirection:'row', flexWrap:'wrap', gap:6 },
+  heroPill:       { flexDirection:'row', alignItems:'center', gap:4, paddingHorizontal:10, paddingVertical:5,
+                    borderRadius:20, backgroundColor:C.isDark?'rgba(255,255,255,0.06)':'#f8fafc',
+                    borderWidth:1, borderColor:C.isDark?'rgba(255,255,255,0.08)':'#e2e8f0' },
+  heroPillTxt:    { fontSize:11, fontWeight:'700', color:C.textSec },
+
+  // ── Stats Grid ──────────────────────────────────────────────
+  statsGrid:      { flexDirection:'row', flexWrap:'wrap', gap:8 },
+  statChip:       { flex:1, minWidth:100, backgroundColor:C.isDark?'#161f30':'#ffffff',
+                    borderRadius:14, padding:12,
+                    borderWidth:1, borderColor:C.isDark?'rgba(255,255,255,0.07)':'#e2e8f0',
+                    borderLeftWidth:3,
+                    ...({ boxShadow: C.isDark?'0 2px 8px rgba(0,0,0,0.2)':'0 1px 4px rgba(15,23,42,0.05)' } as any) },
+  statChipVal:    { fontSize:15, fontWeight:'900', color:C.text, marginBottom:2 },
+  statChipLbl:    { fontSize:10, color:C.textMuted, fontWeight:'600', letterSpacing:0.3 },
+
+  // ── Section Card (acciones, observaciones) ──────────────────
+  sectionCard:    { borderRadius:20, padding:16,
+                    backgroundColor:C.isDark?'#161f30':'#ffffff',
+                    borderWidth:1, borderColor:C.isDark?'rgba(255,255,255,0.07)':'#e2e8f0',
+                    ...({ boxShadow: C.isDark?'0 2px 12px rgba(0,0,0,0.25)':'0 1px 6px rgba(15,23,42,0.04)' } as any) },
+  sectionLbl:     { fontSize:10, fontWeight:'800', color:C.textMuted, letterSpacing:1, textTransform:'uppercase', marginBottom:12 },
+
+  // ── Calendar ────────────────────────────────────────────────
+  secTit:         { fontSize:12, fontWeight:'800', color:C.textMuted, marginBottom:8, textTransform:'uppercase', letterSpacing:0.8 },
+  card:           { borderRadius:20, marginBottom:0, backgroundColor:C.isDark?'#161f30':'#ffffff',
+                    borderWidth:1, borderColor:C.isDark?'rgba(255,255,255,0.07)':'#e2e8f0' },
+  cuotaCard:      { marginBottom:6, borderRadius:14, borderWidth:1,
+                    borderColor: C.isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)',
+                    ...({ boxShadow: C.isDark?'0 1px 6px rgba(0,0,0,0.2)':'0 1px 4px rgba(15,23,42,0.04)' } as any) },
+  cuotaContent:   { flexDirection:'row', alignItems:'center', paddingVertical:10 },
+  cuotaLeft:      { width:70, paddingLeft:4 },
+  cuotaNum:       { fontSize:15, fontWeight:'900', color:C.primaryText },
+  cuotaFecha:     { fontSize:10, color:C.textTer, marginTop:1 },
+  cuotaMid:       { flex:1, paddingHorizontal:8 },
+  cuotaMonto:     { fontSize:14, fontWeight:'800', color:C.text },
+  cuotaMora:      { fontSize:11, color:C.danger, fontWeight:'700' },
+  cuotaMulta:     { fontSize:10, color:C.warning, fontWeight:'700' },
+  pagadaFecha:    { fontSize:10, color:C.success },
+  pagadaMulta:    { fontSize:10, color:C.warning },
+  checkIcon:      { fontSize:22 },
+  pagarBtn:       { backgroundColor:C.primary, borderRadius:10, paddingHorizontal:12, paddingVertical:7 },
+  pagarTxt:       { color:'#fff', fontWeight:'800', fontSize:12 },
+  borrarPagoBtn:  { backgroundColor:C.surfaceAlt, borderRadius:8, paddingHorizontal:8, paddingVertical:4,
+                    borderWidth:1, borderColor:C.danger },
+  borrarPagoTxt:  { color:C.danger, fontSize:11, fontWeight:'600' },
+
+  // ── Modales ─────────────────────────────────────────────────
+  overlay:        { flex:1, backgroundColor:'rgba(0,0,0,0.72)', justifyContent:'flex-end' },
+  modalBox:       { backgroundColor:C.isDark?'#1e293b':'#ffffff', borderWidth:1,
+                    borderColor:C.isDark?'rgba(255,255,255,0.08)':'#e2e8f0',
+                    borderTopLeftRadius:24, borderTopRightRadius:24, padding:20 },
+  modalTit:       { fontSize:16, fontWeight:'800', color:'#c8a951', marginBottom:4 },
+  modalSubtit:    { fontSize:13, color:C.textTer, marginBottom:16 },
+  modalRow:       { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:10 },
+  modalLbl:       { fontSize:14, color:C.textSec },
+  modalVal:       { fontSize:15, fontWeight:'700', color:C.text },
+  switchRow:      { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 },
+  modalTotLbl:    { fontSize:14, fontWeight:'700', color:C.primaryText },
+  modalTotVal:    { fontSize:18, fontWeight:'800', color:C.primaryText },
+  modalBtns:      { flexDirection:'row', gap:10 },
+  modalScroll:    { backgroundColor:C.isDark?'#1e293b':'#ffffff', borderWidth:1,
+                    borderColor:C.isDark?'rgba(255,255,255,0.08)':'#e2e8f0',
+                    borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'95%' },
+  modalScrollContent: { padding:20, paddingBottom:40 },
+  input:          { marginBottom:12 },
+  label:          { fontSize:13, color:C.textSec, fontWeight:'600', marginBottom:8 },
+  optsRow:        { flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:14 },
+  optBtn:         { borderWidth:1, borderColor:C.border, borderRadius:20, paddingHorizontal:14, paddingVertical:6 },
+  optBtnSel:      { backgroundColor:C.primary, borderColor:C.primary },
+  optTxt:         { fontSize:13, color:C.textSec },
+  optTxtSel:      { color:'#fff' },
+  previewBox:     { flexDirection:'row', gap:10, backgroundColor:C.surfaceCard, borderRadius:12,
+                    padding:12, marginBottom:14 },
+  previewItem:    { flex:1, alignItems:'center' },
+  previewLbl:     { fontSize:11, color:C.textSec },
+  previewVal:     { fontSize:16, fontWeight:'800', color:C.primaryText },
+  errorBox:       { backgroundColor:C.surfaceAlt, borderRadius:10, padding:10, marginTop:6,
+                    borderLeftWidth:3, borderLeftColor:C.danger },
+  errorTxt:       { color:C.danger, fontSize:13 },
   // Botones de acción — cuadrícula
-  accionGrid:     {flexDirection:'row', gap:8},
-  accionBtn:      {flex:1, alignItems:'center', justifyContent:'center', borderRadius:12,
-                   paddingVertical:12, paddingHorizontal:4, gap:4, minHeight:64},
-  accionLbl:      {fontSize:11, fontWeight:'700', textAlign:'center'},
-  accionBtnWide:  {flexDirection:'row', alignItems:'center', borderRadius:12,
-                   paddingVertical:12, paddingHorizontal:16, gap:8},
-  accionLblWide:  {fontSize:13, fontWeight:'700', flex:1},
+  accionGrid:     { flexDirection:'row', gap:6 },
+  accionBtn:      { flex:1, alignItems:'center', justifyContent:'center', borderRadius:16,
+                    paddingVertical:12, paddingHorizontal:4, gap:5, minHeight:68 },
+  accionLbl:      { fontSize:10, fontWeight:'800', textAlign:'center', letterSpacing:0.2 },
+  accionBtnWide:  { flexDirection:'row', alignItems:'center', borderRadius:16,
+                    paddingVertical:12, paddingHorizontal:16, gap:8, marginTop:6 },
+  accionLblWide:  { fontSize:13, fontWeight:'700', flex:1 },
+
+  // Estilos viejos preservados para compatibilidad
+  row:            { flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start' },
+  badge:          { paddingHorizontal:10, paddingVertical:4, borderRadius:12 },
+  badgeTxt:       { fontSize:11, fontWeight:'700' },
+  editIconBtn:    { width:34, height:34, borderRadius:17, backgroundColor:C.surfaceCard,
+                    justifyContent:'center', alignItems:'center' },
+  statsRow:       { flexDirection:'row', justifyContent:'space-around', marginBottom:4 },
+  nombreCliente:  { fontSize:18, fontWeight:'800', color:C.text },
+  expediente:     { fontSize:12, color:C.textTer, marginTop:2 },
 });

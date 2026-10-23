@@ -7,7 +7,7 @@ import { useFocusEffect } from 'expo-router';
 import { db } from '../../../src/lib/firebase';
 import { useEmpresa } from '../../../src/context/empresa';
 import { useAuth } from '../../../src/hooks/useAuth';
-import { useColors, glassStyle } from '../../../src/theme';
+import { useColors } from '../../../src/theme';
 const w = (s: any) => s;
 import { calcularMora, formatMoneda, formatFecha, hoy } from '../../../src/utils/calculos';
 import { generarPDFCartera, compartir } from '../../../src/utils/pdf';
@@ -254,7 +254,7 @@ export default function BalanceCartera() {
       </View>
 
       {/* ── Filtros y búsqueda ───────────────────────────────── */}
-      <Card style={[s.toolbar, glassStyle(C.isDark)]}>
+      <Card style={[s.toolbar, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <Card.Content style={{ gap: 10 }}>
           <Searchbar
             placeholder="Buscar cliente, expediente, teléfono..."
@@ -303,7 +303,7 @@ export default function BalanceCartera() {
       </Card>
 
       {/* ── Tabla ────────────────────────────────────────────── */}
-      <Card style={[s.tableCard, glassStyle(C.isDark)]}>
+      <Card style={[s.tableCard, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
         <View style={s.thead}>
           <Text style={[s.th, { flex: 3 }]}>CLIENTE</Text>
           <Text style={[s.th, { flex: 1.2, textAlign: 'right' }]}>CUOTA</Text>
@@ -314,8 +314,8 @@ export default function BalanceCartera() {
 
         {visibles.length === 0 ? (
           <View style={s.empty}>
-            <MaterialCommunityIcons name="bank-off" size={36} color={C.textSub} />
-            <Text style={{ color: C.textSub, marginTop: 8 }}>Sin resultados</Text>
+            <MaterialCommunityIcons name="bank-off" size={36} color={C.textSec} />
+            <Text style={{ color: C.textSec, marginTop: 8 }}>Sin resultados</Text>
           </View>
         ) : (
           visibles.map((f, idx) => (
@@ -327,11 +327,11 @@ export default function BalanceCartera() {
                     {f.cliente}
                   </Text>
                   {(f.expediente || f.telefono) ? (
-                    <Text style={[s.clienteSub, { color: C.textSub }]}>
+                    <Text style={[s.clienteSub, { color: C.textSec }]}>
                       {[f.expediente, f.telefono].filter(Boolean).join(' · ')}
                     </Text>
                   ) : null}
-                  <Text style={[s.clienteSub, { color: C.textSub }]}>
+                  <Text style={[s.clienteSub, { color: C.textSec }]}>
                     Vence: {formatFecha(f.fechaFin)}
                     {f.mora > 0 ? ` · Mora: ${formatMoneda(f.mora)}` : ''}
                   </Text>
@@ -395,16 +395,16 @@ export default function BalanceCartera() {
 /* ── Card de resumen ─────────────────────────────────────────── */
 function SummaryCard({ icon, color, label, value, sub, C }: any) {
   return (
-    <Card style={[{ flex: 1, minWidth: 150 }, glassStyle(C.isDark)]}>
+    <Card style={[{ flex: 1, minWidth: 150 }, { backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' }]}>
       <Card.Content style={{ alignItems: 'center', paddingVertical: 12 }}>
         <MaterialCommunityIcons name={icon} size={28} color={color} />
-        <Text style={{ fontSize: 9, color: C.textSub, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: 9, color: C.textSec, fontWeight: '700', marginTop: 4, letterSpacing: 0.5 }}>
           {label}
         </Text>
         <Text style={{ fontSize: 16, fontWeight: '800', color, marginTop: 2 }}>
           {value}
         </Text>
-        <Text style={{ fontSize: 10, color: C.textSub, marginTop: 2 }}>{sub}</Text>
+        <Text style={{ fontSize: 10, color: C.textSec, marginTop: 2 }}>{sub}</Text>
       </Card.Content>
     </Card>
   );
@@ -416,15 +416,23 @@ function makeStyles(C: any) {
     root:    { flex: 1, backgroundColor: C.bg },
     content: { padding: 14, gap: 12, paddingBottom: 32 },
     row3:    { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-    toolbar: { borderRadius: 12 },
-    tableCard: { borderRadius: 12, overflow: 'hidden' },
+    toolbar: {
+      borderRadius: 20,
+      backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+      borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+    },
+    tableCard: {
+      borderRadius: 20, overflow: 'hidden',
+      backgroundColor: C.isDark ? '#161f30' : '#ffffff',
+      borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0',
+    },
 
     thead: {
       flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
       backgroundColor: C.primary + '22',
       borderBottomWidth: 1, borderBottomColor: C.border,
     },
-    th: { fontSize: 10, fontWeight: '700', color: C.textSub, letterSpacing: 0.4 },
+    th: { fontSize: 10, fontWeight: '700', color: C.textSec, letterSpacing: 0.4 },
 
     trow:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border + '44' },
     trowEven: { backgroundColor: 'transparent' },

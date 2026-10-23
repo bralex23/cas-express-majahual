@@ -305,7 +305,7 @@ function _Card({ label, valor, color, grande, C }: any) {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  root:     { flex: 1, ...glassBgStyle(C) },
+  root:     { flex: 1, backgroundColor: C.bg },
   header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   titulo:   { color: C.primaryText, fontWeight: '800' },
   subtitulo:{ fontSize: 11, color: C.textSec, marginTop: 2 },
@@ -320,7 +320,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   refSep:   { width: 1, backgroundColor: C.border },
   refLbl:   { fontSize: 10, color: C.textTer, textAlign: 'center', marginBottom: 4, lineHeight: 14 },
   refVal:   { fontSize: 13, fontWeight: '700', textAlign: 'center' },
-  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, ...glassStyle(C) },
+  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   panelTit: { fontSize: 11, fontWeight: '700', color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 14 },
   barras:   { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 110, paddingBottom: 20 },
   barraCol: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },

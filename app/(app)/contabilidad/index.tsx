@@ -520,7 +520,7 @@ function _Card({ label, valor, color, C }: { label: string; valor: number; color
 
 /* ── Estilos ── */
 const makeStyles = (C: any) => StyleSheet.create({
-  root:     { flex: 1, ...glassBgStyle(C) },
+  root:     { flex: 1, backgroundColor: C.bg },
   header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   titulo:   { color: C.primaryText, fontWeight: '800' },
   subtitulo:{ fontSize: 11, color: C.textSec, marginTop: 2 },
@@ -540,7 +540,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   exportMsg: { borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1 },
 
   /* Panel */
-  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, ...glassStyle(C) },
+  panel:    { borderRadius: 14, padding: 14, marginBottom: 14, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   panelTit: { fontSize: 12, fontWeight: '700', color: C.textSec, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   vacio:    { fontSize: 13, color: C.textTer, textAlign: 'center', paddingVertical: 10 },
 
@@ -572,7 +572,7 @@ const makeStyles = (C: any) => StyleSheet.create({
 
   /* Modal */
   overlay:  { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalBox: { width: '100%', maxWidth: 480, borderRadius: 16, padding: 20, ...glassStyle(C), backgroundColor: C.surface },
+  modalBox: { width: '100%', maxWidth: 480, borderRadius: 20, padding: 20, backgroundColor: C.isDark ? '#1e293b' : '#ffffff', borderWidth: 1, borderColor: C.isDark ? 'rgba(255,255,255,0.08)' : '#e2e8f0' },
   modalTit: { fontSize: 16, fontWeight: '800', color: C.primaryText, marginBottom: 16 },
   lbl:      { fontSize: 12, fontWeight: '600', color: C.textSec, marginBottom: 4 },
   txtInput: {

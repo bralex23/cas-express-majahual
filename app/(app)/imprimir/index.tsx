@@ -191,10 +191,10 @@ export default function Imprimir() {
 }
 
 const makeStyles = (C: any) => StyleSheet.create({
-  container:    { flex:1, ...w(glassBgStyle(C)) },
+  container:    { flex:1, backgroundColor:C.bg },
   titulo:       { color:C.primaryText, fontWeight:'800', marginBottom:6 },
   subtitulo:    { fontSize:12, color:C.textSec, marginBottom:16, lineHeight:18 },
-  panel:        { borderRadius:16, padding:14, marginBottom:16, ...glassStyle(C), gap:12 },
+  panel:        { borderRadius:16, padding:14, marginBottom:16, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0', gap:12 },
   row:          { flexDirection:'row', gap:10 },
   toggleRow:    { flexDirection:'row', alignItems:'flex-start', gap:10, paddingVertical:4 },
   check:        { width:20, height:20, borderRadius:5, borderWidth:2, borderColor:C.primary,
@@ -205,7 +205,7 @@ const makeStyles = (C: any) => StyleSheet.create({
   toggleSub:    { fontSize:11, color:C.textSec, marginTop:2 },
   secLabel:     { fontSize:12, color:C.textTer, fontWeight:'700', marginBottom:8,
                   textTransform:'uppercase', letterSpacing:0.5 },
-  imgCard:      { borderRadius:12, overflow:'hidden', marginBottom:12, ...glassStyle(C) },
+  imgCard:      { borderRadius:12, overflow:'hidden', marginBottom:12, backgroundColor: C.isDark ? '#161f30' : '#ffffff', borderWidth:1, borderColor: C.isDark ? 'rgba(255,255,255,0.07)' : '#e2e8f0' },
   preview:      { width:'100%', height:240, backgroundColor:C.surfaceAlt },
   imgFooter:    { flexDirection:'row', alignItems:'center', justifyContent:'space-between',
                   padding:10, gap:8 },

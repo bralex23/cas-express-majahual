@@ -209,9 +209,9 @@ export default function ConfiguracionScreen() {
   if (!isCapacitor()) {
     return (
       <View style={[s.root, { backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }]}>
-        <MaterialCommunityIcons name="cellphone-lock" size={60} color={C.muted} />
+        <MaterialCommunityIcons name="cellphone-lock" size={60} color={C.textMuted} />
         <Text style={[s.noMobileTitle, { color: C.text }]}>Solo disponible en la app móvil</Text>
-        <Text style={[s.noMobileSub, { color: C.muted }]}>
+        <Text style={[s.noMobileSub, { color: C.textMuted }]}>
           Estas configuraciones son exclusivas del APK Android.
         </Text>
       </View>
@@ -234,7 +234,7 @@ export default function ConfiguracionScreen() {
         <View style={s.pinBody}>
           <MaterialCommunityIcons name="shield-lock-outline" size={52} color={C.primary} style={{ marginBottom: 12 }} />
           <Text style={[s.pinTitle, { color: C.text }]}>{pinTitle}</Text>
-          <Text style={[s.pinSub, { color: C.muted }]}>{pinSub}</Text>
+          <Text style={[s.pinSub, { color: C.textMuted }]}>{pinSub}</Text>
 
           {/* Puntos */}
           <Animated.View style={[s.dots, { transform: [{ translateX: shakeAnim }] }]}>
@@ -274,7 +274,7 @@ export default function ConfiguracionScreen() {
           </View>
 
           <TouchableOpacity onPress={cancelPin} style={{ marginTop: 20 }}>
-            <Text style={{ color: C.muted, fontSize: 14 }}>Cancelar</Text>
+            <Text style={{ color: C.textMuted, fontSize: 14 }}>Cancelar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -293,7 +293,7 @@ export default function ConfiguracionScreen() {
       <ScrollView contentContainerStyle={s.scroll}>
 
         {/* ── Sección: Seguridad ── */}
-        <Text style={[s.sectionLabel, { color: C.muted }]}>SEGURIDAD</Text>
+        <Text style={[s.sectionLabel, { color: C.textMuted }]}>SEGURIDAD</Text>
         <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
 
           {/* Cambiar PIN */}
@@ -313,11 +313,11 @@ export default function ConfiguracionScreen() {
               <Text style={[s.rowTitle, { color: C.text }]}>
                 {getSavedHash() ? 'Cambiar PIN' : 'Configurar PIN'}
               </Text>
-              <Text style={[s.rowSub, { color: C.muted }]}>
+              <Text style={[s.rowSub, { color: C.textMuted }]}>
                 {getSavedHash() ? 'Actualiza tu código de seguridad de 4 dígitos' : 'Crea un PIN de 4 dígitos para proteger la app'}
               </Text>
             </View>
-            <MaterialCommunityIcons name="chevron-right" size={22} color={C.muted} />
+            <MaterialCommunityIcons name="chevron-right" size={22} color={C.textMuted} />
           </TouchableOpacity>
 
           {/* Huella dactilar */}
@@ -328,7 +328,7 @@ export default function ConfiguracionScreen() {
               </View>
               <View style={s.rowBody}>
                 <Text style={[s.rowTitle, { color: C.text }]}>Huella dactilar</Text>
-                <Text style={[s.rowSub, { color: C.muted }]}>
+                <Text style={[s.rowSub, { color: C.textMuted }]}>
                   {bioEnabled
                     ? 'Activa — desbloquea con tu huella'
                     : 'Desactiva — solo PIN al abrir la app'}
@@ -339,26 +339,26 @@ export default function ConfiguracionScreen() {
                 onValueChange={toggleBio}
                 disabled={bioLoading}
                 trackColor={{ false: C.border, true: '#4caf5066' }}
-                thumbColor={bioEnabled ? '#4caf50' : C.muted}
+                thumbColor={bioEnabled ? '#4caf50' : C.textMuted}
               />
             </View>
           )}
 
           {!bioAvailable && (
             <View style={[s.row, { opacity: 0.5 }]}>
-              <View style={[s.rowIcon, { backgroundColor: C.muted + '20' }]}>
-                <MaterialCommunityIcons name="fingerprint-off" size={22} color={C.muted} />
+              <View style={[s.rowIcon, { backgroundColor: C.textMuted + '20' }]}>
+                <MaterialCommunityIcons name="fingerprint-off" size={22} color={C.textMuted} />
               </View>
               <View style={s.rowBody}>
-                <Text style={[s.rowTitle, { color: C.muted }]}>Huella dactilar</Text>
-                <Text style={[s.rowSub, { color: C.muted }]}>No disponible en este dispositivo</Text>
+                <Text style={[s.rowTitle, { color: C.textMuted }]}>Huella dactilar</Text>
+                <Text style={[s.rowSub, { color: C.textMuted }]}>No disponible en este dispositivo</Text>
               </View>
             </View>
           )}
         </View>
 
         {/* ── Sección: Información ── */}
-        <Text style={[s.sectionLabel, { color: C.muted }]}>INFORMACIÓN</Text>
+        <Text style={[s.sectionLabel, { color: C.textMuted }]}>INFORMACIÓN</Text>
         <View style={[s.card, { backgroundColor: C.surface, borderColor: C.border }]}>
           <View style={[s.row, { borderBottomColor: C.border }]}>
             <View style={[s.rowIcon, { backgroundColor: '#1565c020' }]}>
@@ -366,7 +366,7 @@ export default function ConfiguracionScreen() {
             </View>
             <View style={s.rowBody}>
               <Text style={[s.rowTitle, { color: C.text }]}>Plataforma</Text>
-              <Text style={[s.rowSub, { color: C.muted }]}>Android (APK)</Text>
+              <Text style={[s.rowSub, { color: C.textMuted }]}>Android (APK)</Text>
             </View>
           </View>
           <View style={s.row}>
@@ -375,7 +375,7 @@ export default function ConfiguracionScreen() {
             </View>
             <View style={s.rowBody}>
               <Text style={[s.rowTitle, { color: C.text }]}>Estado de seguridad</Text>
-              <Text style={[s.rowSub, { color: C.muted }]}>
+              <Text style={[s.rowSub, { color: C.textMuted }]}>
                 {getSavedHash()
                   ? `PIN activo${bioEnabled ? ' · Huella activa' : ''}`
                   : 'Sin PIN configurado'}
